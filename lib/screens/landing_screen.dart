@@ -1,5 +1,3 @@
-// lib/screens/landing_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
@@ -9,45 +7,57 @@ class LandingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bluePrimary = Colors.blue.shade800;
+    final blueAccent = Colors.blueAccent;
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              // --- Top Section: Logo and Title ---
+            children: [
+              // --- Header ---
               Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
                     'SOCIO.',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue[800], // Adjusted Color
-                      fontSize: 32, // Larger Font
+                    style: GoogleFonts.poppins(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w800,
+                      color: bluePrimary,
+                      letterSpacing: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   Text(
                     'Discover, register, and experience campus events like never before.',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontFamily: GoogleFonts.lato().fontFamily,
-                      fontSize: 18, // Adjusted Font Size
-                      color: Colors.blue[600], // Adjusted Color
+                    style: GoogleFonts.lato(
+                      fontSize: 18,
+                      color: Colors.grey.shade700,
                     ),
                   ),
                 ],
               ),
 
-              // --- Middle Section: Illustration Placeholder ---
+              const SizedBox(height: 32),
+
+              // --- Illustration / Image ---
               Container(
-                height: 200,
-                margin: const EdgeInsets.symmetric(vertical: 20),
+                height: 220,
                 decoration: BoxDecoration(
-                  color: Colors.yellow[100], // Changed Color
-                  borderRadius: BorderRadius.circular(20), // Adjusted Radius
+                  color: Colors.yellow[100],
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: const Center(
                   child: Text(
@@ -57,46 +67,45 @@ class LandingScreen extends StatelessWidget {
                 ),
               ),
 
-              // --- Bottom Section: Buttons ---
+              const Spacer(),
+
+              // --- Buttons ---
               Column(
                 children: [
-                  // Get Started Button
+                  // Get Started
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 50),
-                      backgroundColor: Colors.blue[600], // Changed Color
+                      minimumSize: const Size.fromHeight(50),
+                      backgroundColor: bluePrimary,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      textStyle: const TextStyle(
+                      textStyle: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
                         fontSize: 16,
-                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     onPressed: () {
-                      print("Get Started button tapped!");
                       context.goNamed('publicDiscover');
                     },
-                    child: const Text('Get started'),
+                    child: const Text('Get Started'),
                   ),
-                  const SizedBox(height: 15),
 
-                  // Explore Button
+                  const SizedBox(height: 14),
+
+                  // Explore
                   OutlinedButton(
                     style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 50),
-                      side: const BorderSide(
-                        color: Colors.blueAccent,
-                        width: 1.5,
-                      ),
-                      foregroundColor: Colors.blue[600],
+                      minimumSize: const Size.fromHeight(50),
+                      side: BorderSide(color: blueAccent, width: 1.5),
+                      foregroundColor: bluePrimary,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      textStyle: const TextStyle(
+                      textStyle: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w500,
                         fontSize: 16,
-                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     onPressed: () {
@@ -104,23 +113,36 @@ class LandingScreen extends StatelessWidget {
                     },
                     child: const Text('Explore'),
                   ),
-                  const SizedBox(height: 20),
 
-                  // Login / Sign up Links
+                  const SizedBox(height: 24),
+
+                  // Login & Sign Up
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       TextButton(
                         onPressed: () => context.goNamed('login'),
-                        child: const Text('Log in'),
+                        child: Text(
+                          'Log in',
+                          style: GoogleFonts.lato(fontWeight: FontWeight.bold),
+                        ),
                       ),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 4.0),
-                        child: Text('|', style: TextStyle(color: Colors.grey)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                        child: Text(
+                          '|',
+                          style: GoogleFonts.lato(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
+                        ),
                       ),
                       TextButton(
                         onPressed: () => context.goNamed('signup'),
-                        child: const Text('Sign up'),
+                        child: Text(
+                          'Sign up',
+                          style: GoogleFonts.lato(fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ],
                   ),

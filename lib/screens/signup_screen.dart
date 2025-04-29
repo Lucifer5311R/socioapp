@@ -95,9 +95,12 @@ class _SignupScreenState extends State<SignupScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Account'),
+        title: Text(
+          'Create Account',
+          style: const TextStyle(color: Colors.white),
+        ),
         centerTitle: true,
-        backgroundColor: Colors.blue[800],
+        backgroundColor: Colors.blue[500],
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -109,7 +112,7 @@ class _SignupScreenState extends State<SignupScreen> {
               Text(
                 'Create Your SOCIO Account',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w900,
                   color: Colors.blue[800],
                 ),
                 textAlign: TextAlign.center,
@@ -160,18 +163,27 @@ class _SignupScreenState extends State<SignupScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12.0),
-                      backgroundColor: Colors.blue[800],
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12.0,
+                        horizontal: 20.0,
+                      ), // Increased padding for better spacing
+                      backgroundColor:
+                          Colors.blue[800], // Button background color
                       textStyle: const TextStyle(
-                        fontSize: 23,
+                        fontSize:
+                            18, // Slightly larger font for better readability
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
+                      shape: RoundedRectangleBorder(
+                        // Rounded corners for a sleek look
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      // Adding a hover effect (if needed for web)
                     ),
                     onPressed: _signUpWithEmail,
                     child: const Text('Sign Up'),
                   ),
-              const SizedBox(height: 20),
 
               Row(
                 children: <Widget>[
