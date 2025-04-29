@@ -203,7 +203,7 @@ class _SignupScreenState extends State<SignupScreen> {
               Center(
                 child: TextButton(
                   onPressed: () => context.goNamed('login'),
-                  child: const Text('Already have an account? Log In'),
+                  child: const Text('Already have an account? Log in'),
                 ),
               ),
             ],
