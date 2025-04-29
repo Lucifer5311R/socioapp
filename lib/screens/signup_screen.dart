@@ -165,6 +165,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       textStyle: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
                     onPressed: _signUpWithEmail,
