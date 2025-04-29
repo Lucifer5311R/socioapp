@@ -242,19 +242,28 @@ void _initializeRouter() {
   );
 }
 
-// --- NEW: Theme Manager ---
-// Using ValueNotifier for simplicity. Replace with Provider/Riverpod if you prefer.
+// --- NEW: Theme Manager (Keep as is) ---
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(
   ThemeMode.system,
 ); // Default to system theme
+
+// --- NEW: Define Colors ---
+const Color darkBlue = Color(0xFF063168);
+const Color mediumBlue = Color(0xFF154CB3);
+const Color brightYellow = Color(0xFFFFCC00);
+const Color lightGray = Color(0xFFF5F5F5);
+const Color mediumGray = Color(0xFFCCCCCC);
+const Color darkGray = Color(0xFF888888);
+const Color white = Color(0xFFFFFFFF);
 
 // --- Main App Entry Point ---
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
-    url: 'https://srmirwkdbcktvlyflvdi.supabase.co',
+    // IMPORTANT: Replace with secure loading (e.g., environment variables)
+    url: 'https://srmirwkdbcktvlyflvdi.supabase.co', // DO NOT COMMIT THIS
     anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNybWlyd2tkYmNrdHZseWZsdmRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU0ODg5NDgsImV4cCI6MjA2MTA2NDk0OH0.z2qvwaO0qV3meul-QUmpEpsLoyZXwvqpm9FeTsSc0co',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNybWlyd2tkYmNrdHZseWZsdmRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU0ODg5NDgsImV4cCI6MjA2MTA2NDk0OH0.z2qvwaO0qV3meul-QUmpEpsLoyZXwvqpm9FeTsSc0co', // DO NOT COMMIT THIS - load securely
   );
   _initializeRouter(); // Initialize router AFTER Supabase
   runApp(const MyApp());
@@ -266,59 +275,233 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // --- UPDATED: Use ValueListenableBuilder to react to theme changes ---
+    // Apply DM Sans font globally
+    final textTheme = Theme.of(context).textTheme;
+    final dmSansTextTheme = GoogleFonts.dmSansTextTheme(textTheme);
+
+    // --- Define ColorScheme for Light Theme ---
+    const lightColorScheme = ColorScheme(
+      brightness: Brightness.light,
+      primary: mediumBlue, // Key interactive elements
+      onPrimary: white, // Text/icons on primary
+      primaryContainer: Color(0xFFD0E4FF), // Lighter primary containers
+      onPrimaryContainer: Color(0xFF001D36), // Text on primary container
+      secondary: darkBlue, // Less prominent elements, accents
+      onSecondary: white, // Text/icons on secondary
+      secondaryContainer: Color(0xFFD3E4FF), // Lighter secondary containers
+      onSecondaryContainer: Color(0xFF001D36), // Text on secondary container
+      tertiary: brightYellow, // Accent color
+      onTertiary: darkBlue, // Text/icons on accent
+      tertiaryContainer: Color(0xFFFFE086), // Lighter accent containers
+      onTertiaryContainer: Color(0xFF251A00), // Text on accent container
+      error: Color(0xFFBA1A1A), // Error color
+      onError: white, // Text on error
+      errorContainer: Color(0xFFFFDAD6), // Lighter error container
+      onErrorContainer: Color(0xFF410002), // Text on error container
+      surface: lightGray, // Backgrounds for cards, sheets
+      onSurface: Color(0xFF1A1C1E), // Text on backgrounds
+      surfaceContainerHighest: white, // Elevated surfaces
+      onSurfaceVariant: darkGray, // Lower emphasis text/icons
+      outline: mediumGray, // Borders, dividers
+      shadow: Color(0xFF000000),
+      inverseSurface: Color(
+        0xFF2F3033,
+      ), // Contrasting surface for SnackBar etc.
+      onInverseSurface: lightGray, // Text on inverse surface
+      inversePrimary: Color(0xFFA9C7FF), // Primary on dark background
+      surfaceTint: mediumBlue, // Tint color over surfaces
+    );
+
+    // --- Define ColorScheme for Dark Theme ---
+    const darkColorScheme = ColorScheme(
+      brightness: Brightness.dark,
+      primary: mediumBlue, // Keep key elements prominent
+      onPrimary: white,
+      primaryContainer: Color(0xFF004A77), // Darker primary container
+      onPrimaryContainer: Color(0xFFD0E4FF),
+      secondary: Color(0xFFA2C9FF), // Lighter secondary for contrast
+      onSecondary: Color(0xFF003258),
+      secondaryContainer: Color(0xFF00497D), // Darker secondary container
+      onSecondaryContainer: Color(0xFFD3E4FF),
+      tertiary: brightYellow, // Accent remains bright
+      onTertiary: darkBlue,
+      tertiaryContainer: Color(0xFF594300), // Darker accent container
+      onTertiaryContainer: Color(0xFFFFE086),
+      error: Color(0xFFFFB4AB), // Lighter error for dark mode
+      onError: Color(0xFF690005),
+      errorContainer: Color(0xFF93000A), // Darker error container
+      onErrorContainer: Color(0xFFFFDAD6),
+      surface: Color(0xFF1A1C1E), // Dark background
+      onSurface: Color(0xFFE2E2E6), // Light text on dark background
+      surfaceContainerHighest: Color(0xFF333639), // Elevated dark surfaces
+      onSurfaceVariant: mediumGray, // Medium gray text/icons
+      outline: darkGray, // Darker gray borders/dividers
+      shadow: Color(0xFF000000),
+      inverseSurface: Color(0xFFE2E2E6), // Light inverse surface
+      onInverseSurface: Color(0xFF1A1C1E), // Dark text on light inverse surface
+      inversePrimary: Color(0xFF154CB3), // Primary color on light inverse
+      surfaceTint: mediumBlue,
+    );
+
+    // Define common input decoration theme
+    final inputDecorationTheme = InputDecorationTheme(
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8.0),
+        borderSide: BorderSide(color: mediumGray), // Use theme color
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8.0),
+        borderSide: BorderSide(color: darkGray), // Use theme color
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8.0),
+        borderSide: BorderSide(
+          color: mediumBlue,
+          width: 2.0,
+        ), // Use theme color
+      ),
+      // Add styles for labels, hints etc. using dmSansTextTheme if needed
+    );
+
+    // Define common button themes
+    final elevatedButtonTheme = ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: mediumBlue, // Use theme primary
+        foregroundColor: white, // Use onPrimary
+        textStyle: dmSansTextTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w500,
+        ), // DM Sans Medium for buttons
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+      ),
+    );
+
+    final textButtonTheme = TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: mediumBlue, // Use theme primary
+        textStyle: dmSansTextTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w500,
+        ), // DM Sans Medium
+      ),
+    );
+
+    final outlinedButtonTheme = OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: mediumBlue, // Use theme primary
+        side: BorderSide(color: mediumBlue), // Border uses primary
+        textStyle: dmSansTextTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w500,
+        ), // DM Sans Medium
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+      ),
+    );
+
+    // Build the theme data
+    ThemeData buildTheme(ColorScheme colorScheme) {
+      return ThemeData(
+        colorScheme: colorScheme,
+        textTheme: dmSansTextTheme.apply(
+          bodyColor: colorScheme.onSurface,
+          displayColor: colorScheme.onSurface,
+        ),
+        // Apply DM Sans weights to specific text styles
+        primaryTextTheme: dmSansTextTheme.copyWith(
+          headlineLarge: dmSansTextTheme.headlineLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ), // H1/H2 Bold
+          headlineMedium: dmSansTextTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ), // H1/H2 Bold
+          titleLarge: dmSansTextTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w500,
+          ), // H3/H4 Medium
+          titleMedium: dmSansTextTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w500,
+          ), // H3/H4 Medium
+          bodyLarge: dmSansTextTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.normal,
+          ), // Body Regular
+          bodyMedium: dmSansTextTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.normal,
+          ), // Body Regular
+          labelLarge: dmSansTextTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w500,
+          ), // Button Medium
+        ),
+        appBarTheme: AppBarTheme(
+          backgroundColor: colorScheme.surfaceContainerHighest,
+          foregroundColor: colorScheme.onSurface,
+          elevation: 1,
+          shadowColor: colorScheme.shadow.withOpacity(0.1),
+          titleTextStyle: dmSansTextTheme.titleLarge?.copyWith(
+            color: colorScheme.primary, // Title uses Primary Blue
+            fontWeight: FontWeight.bold, // Bold title
+          ),
+        ),
+        inputDecorationTheme: inputDecorationTheme,
+        elevatedButtonTheme: elevatedButtonTheme,
+        textButtonTheme: textButtonTheme,
+        outlinedButtonTheme: outlinedButtonTheme,
+        cardTheme: CardTheme(
+          elevation: 1.5,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10.0),
+          ),
+          color:
+              colorScheme
+                  .surfaceContainerHighest, // Cards use elevated surface color
+          clipBehavior: Clip.antiAlias,
+        ),
+        chipTheme: ChipThemeData(
+          backgroundColor: colorScheme.secondaryContainer.withOpacity(0.5),
+          labelStyle: dmSansTextTheme.labelSmall?.copyWith(
+            color: colorScheme.onSecondaryContainer,
+          ),
+          side: BorderSide.none,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+          selectedItemColor: colorScheme.primary,
+          unselectedItemColor: colorScheme.onSurfaceVariant.withOpacity(0.7),
+          backgroundColor:
+              colorScheme.surfaceContainer, // Slightly different background
+          type: BottomNavigationBarType.fixed,
+          elevation: 3.0,
+          selectedLabelStyle: dmSansTextTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w500,
+          ), // Medium weight for selected label
+          unselectedLabelStyle: dmSansTextTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.normal,
+          ), // Regular for unselected
+        ),
+        tabBarTheme: TabBarTheme(
+          labelColor: colorScheme.primary,
+          unselectedLabelColor: colorScheme.onSurfaceVariant,
+          indicatorColor: colorScheme.primary,
+          indicatorSize: TabBarIndicatorSize.tab,
+          labelStyle: dmSansTextTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w500,
+          ), // Medium weight
+          unselectedLabelStyle: dmSansTextTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.normal,
+          ), // Regular
+        ),
+        useMaterial3: true,
+      );
+    }
+
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
       builder: (_, mode, __) {
-        // Define the light theme
-        final lightTheme = ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blueAccent,
-            brightness: Brightness.light, // Explicitly set brightness
-          ),
-          textTheme: GoogleFonts.latoTextTheme(
-            ThemeData.light().textTheme,
-          ), // Use light base
-          useMaterial3: true,
-          inputDecorationTheme: InputDecorationTheme(
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8.0),
-            ),
-          ),
-          // Add other light theme specific customizations
-        );
-
-        // Define the dark theme
-        final darkTheme = ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blueAccent,
-            brightness: Brightness.dark, // Explicitly set brightness
-          ),
-          textTheme: GoogleFonts.latoTextTheme(
-            ThemeData.dark().textTheme,
-          ), // Use dark base
-          useMaterial3: true,
-          inputDecorationTheme: InputDecorationTheme(
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8.0),
-            ),
-          ),
-          // Add other dark theme specific customizations
-          // Example: Different Card color
-          cardTheme: CardTheme(
-            color: Colors.grey[850], // Darker card background
-          ),
-          chipTheme: ChipThemeData(
-            backgroundColor: Colors.grey[700], // Darker chips
-            labelStyle: TextStyle(color: Colors.white.withOpacity(0.8)),
-          ),
-        );
-
         return MaterialApp.router(
           title: 'SOCIO App',
-          theme: lightTheme, // Provide light theme
-          darkTheme: darkTheme, // Provide dark theme
-          themeMode: mode, // Control theme mode using the notifier
+          theme: buildTheme(lightColorScheme),
+          darkTheme: buildTheme(darkColorScheme),
+          themeMode: mode,
           routerConfig: _router,
           debugShowCheckedModeBanner: false,
         );

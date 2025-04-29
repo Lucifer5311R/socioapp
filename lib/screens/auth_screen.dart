@@ -149,24 +149,13 @@ class _AuthScreenState extends State<AuthScreen> {
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () {}, // Link to password reset functionality
-                      child: const Text(
-                        "Forgot password?",
-                        style: TextStyle(color: Colors.blue),
-                      ),
+                      child: const Text("Forgot password?"),
                     ),
                   ),
                   const SizedBox(height: 25),
                   _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12.0),
-                          textStyle: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          backgroundColor: Colors.blue,
-                        ),
                         onPressed: _isLoading ? null : _signInWithEmail,
                         child: const Text('Log In'),
                       ),
@@ -187,11 +176,6 @@ class _AuthScreenState extends State<AuthScreen> {
                     label: const Padding(
                       padding: EdgeInsets.symmetric(vertical: 12.0),
                       child: Text('Log in with Google'),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      foregroundColor: Colors.black87,
-                      backgroundColor: Colors.white,
-                      side: BorderSide(color: Colors.grey[400]!),
                     ),
                     onPressed: _isLoading ? null : _signInWithGoogle,
                   ),

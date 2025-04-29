@@ -13,6 +13,7 @@ import '../models/event.dart';
 import '../models/category.dart';
 import '../widgets/event_card.dart';
 import '../widgets/category_card.dart';
+import '../widgets/notifications_tab.dart';
 // Import the random event generator
 import '../utils/random_event_generator.dart';
 // Import main.dart to access themeNotifier
@@ -228,7 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final List<Widget> widgetOptions = <Widget>[
       _buildHomeTabContent(context), // Index 0: Home
       _buildPlaceholderTab('My Events'), // Index 1: My Events
-      _buildPlaceholderTab('Notifications'), // Index 2: Notifications (Moved)
+      const NotificationsTabFrontend(), // Index 2: Notifications (Moved)
       const StudentDashboardScreen(), // Index 3: Profile (Moved)
     ];
 
