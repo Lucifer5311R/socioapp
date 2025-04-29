@@ -163,7 +163,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 12.0),
                       backgroundColor: Colors.blue[800],
                       textStyle: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 36,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
