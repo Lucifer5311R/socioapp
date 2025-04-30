@@ -26,7 +26,7 @@ class LandingScreen extends StatelessWidget {
                     'SOCIO.',
                     style: GoogleFonts.poppins(
                       fontSize: 36,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.bold,
                       color: bluePrimary,
                       letterSpacing: 1.5,
                     ),
@@ -98,8 +98,9 @@ class LandingScreen extends StatelessWidget {
                   OutlinedButton(
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(50),
-                      side: BorderSide(color: blueAccent, width: 1.5),
-                      foregroundColor: bluePrimary,
+                      backgroundColor: Colors.yellow,
+                      foregroundColor: Colors.black,
+                      side: const BorderSide(color: Colors.yellow, width: 1.5),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
