@@ -449,6 +449,31 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildClubsCarouselPlaceholder(context), // Uses placeholder data
           const SizedBox(height: 24),
 
+          // 9. Team Events Section
+          _buildSectionHeader(
+            "Team Events", // Section title
+            context: context,
+            onViewAllTap:
+                () => _navigateToViewAll(
+                  context,
+                  "Team Events",
+                ), // Optional: Implement View All later
+          ),
+          _buildStandardEventCarousel(
+            // Reuse the standard carousel builder
+            context: context,
+            future:
+                notifier.teamEventsFuture, // Use the new future from notifier
+            loadingStatus:
+                notifier.teamEventsLoadingStatus, // Use the new status
+            height: kStandardCarouselHeight, // Use standard height/width
+            itemWidth: kEventCardWidth,
+            errorMsg: "Could not load team events.",
+            emptyMsg: "No team events found.", // Empty state message
+          ),
+
+          const SizedBox(height: 24),
+
           // 8. Upcoming Events Section
           _buildSectionHeader(
             "Upcoming Events",

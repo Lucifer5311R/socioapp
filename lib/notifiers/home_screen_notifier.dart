@@ -76,6 +76,11 @@ class HomeScreenNotifier extends ChangeNotifier {
   LoadingStatus get allUpcomingEventsLoadingStatus =>
       _allUpcomingEventsLoadingStatus;
 
+  Future<List<Event>> _teamEventsFuture = Future.value([]);
+  Future<List<Event>> get teamEventsFuture => _teamEventsFuture;
+  LoadingStatus _teamEventsLoadingStatus = LoadingStatus.idle;
+  LoadingStatus get teamEventsLoadingStatus => _teamEventsLoadingStatus;
+
   bool
   get isLoadingOverall => // Use this if you need a general loading flag for the whole screen
       _profileLoadingStatus == LoadingStatus.loading;
@@ -168,14 +173,15 @@ class HomeScreenNotifier extends ChangeNotifier {
     int limit, {
     String? campus,
     String? upcomingFilter,
+    bool onlyTeamEvents = false,
   }) async {
     final delay = Duration(milliseconds: 400 + _random.nextInt(300));
     await Future.delayed(delay);
     log.d(
-      "Notifier: Simulating fetch for $section (Campus: $campus, Filter: $upcomingFilter, Limit: $limit)",
+      "Notifier: Simulating fetch for $section (Campus: $campus, Filter: $upcomingFilter, Limit: $limit, TeamOnly: $onlyTeamEvents)",
     );
     List<Event> events = generateRandomEvents(
-      limit * 3,
+      limit * 5,
     ); // Generate more for filtering
 
     // Placeholder Campus Filtering
@@ -183,6 +189,13 @@ class HomeScreenNotifier extends ChangeNotifier {
       events.removeWhere(
         (e) => _random.nextDouble() < 0.6,
       ); // Simple random removal
+    }
+
+    if (onlyTeamEvents) {
+      events =
+          events
+              .where((e) => e.isTeamEvent)
+              .toList(); // Filter using the model's getter
     }
 
     // Placeholder Upcoming Filter Filtering
@@ -328,6 +341,33 @@ class HomeScreenNotifier extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadTeamEvents() async {
+    _updateSectionLoadingStatus(
+      '_teamEventsLoadingStatus',
+      LoadingStatus.loading,
+    );
+    try {
+      _teamEventsFuture = _fetchEventsPlaceholder(
+        'teamEvents', // Section identifier
+        7, // Limit number of events shown in carousel
+        campus: _selectedCampusFilter, // Apply campus filter
+        onlyTeamEvents: true, // <<-- Specify to fetch only team events
+      );
+      await _teamEventsFuture; // Await completion to set final status
+      _updateSectionLoadingStatus(
+        '_teamEventsLoadingStatus',
+        LoadingStatus.loaded,
+      );
+    } catch (e) {
+      log.e("Notifier: Error loading team events: $e");
+      _updateSectionLoadingStatus(
+        '_teamEventsLoadingStatus',
+        LoadingStatus.error,
+      );
+      _teamEventsFuture = Future.value([]); // Provide empty list on error
+    }
+  }
+
   Future<void> _loadAllUpcomingEvents() async {
     _updateSectionLoadingStatus(
       '_allUpcomingEventsLoadingStatus',
@@ -383,6 +423,12 @@ class HomeScreenNotifier extends ChangeNotifier {
           changed = true;
         }
         break;
+      case '_teamEventsLoadingStatus':
+        if (_teamEventsLoadingStatus != status) {
+          _teamEventsLoadingStatus = status;
+          changed = true;
+        }
+        break;
     }
     if (changed) {
       notifyListeners();
@@ -396,6 +442,7 @@ class HomeScreenNotifier extends ChangeNotifier {
     _loadTopEvents();
     _loadFeaturedEvents();
     _loadUpcomingFests();
+    _loadTeamEvents();
     _loadAllUpcomingEvents();
   }
 
