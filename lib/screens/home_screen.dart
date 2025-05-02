@@ -657,7 +657,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     return SizedBox(
-      width: kMvpCardWidth,
+      width: double.infinity,
       height: cardHeight,
       child: Card(
         clipBehavior: Clip.antiAlias,

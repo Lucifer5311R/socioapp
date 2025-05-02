@@ -817,7 +817,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                 },
                 child: Text(
                   "View all registered events >",
-                  style: TextStyle(color: colorScheme.primary, fontSize: 12),
+                  style: TextStyle(color: colorScheme.primary, fontSize: 14, fontWeight: FontWeight.w500),
                 ),
               ),
             ),

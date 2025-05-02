@@ -86,18 +86,54 @@ class EventCard extends StatelessWidget {
       Color chipTextColor = colorScheme.onSecondaryContainer;
       // Add specific color logic if needed...
       if (tag.toLowerCase() == 'free') {
-        chipColor = Colors.green.shade100.withOpacity(0.7);
-        chipTextColor = Colors.green.shade900;
+        chipColor = const Color.fromARGB(255, 80, 251, 86);
+        chipTextColor = Colors.black;
       } else if (tag.toLowerCase() == 'paid') {
-        chipColor = Colors.blue.shade100.withOpacity(0.7);
-        chipTextColor = Colors.blue.shade900;
+        chipColor = const Color.fromARGB(255, 121, 195, 255);
+        chipTextColor = Colors.black;
+      } else if (tag.toLowerCase() == 'cultural') {
+        chipColor = const Color.fromARGB(255, 254, 169, 50);
+        chipTextColor = Colors.black;
+      } else if (tag.toLowerCase() == 'tech') {
+        chipColor = const Color.fromARGB(255, 214, 253, 23);
+        chipTextColor = Colors.black;
+      } else if (tag.toLowerCase() == 'advanced') {
+        chipColor = const Color.fromARGB(255, 214, 253, 23);
+        chipTextColor = Colors.black;
+      } else if (tag.toLowerCase() == 'social') {
+        chipColor = const Color.fromARGB(255, 214, 253, 23);
+        chipTextColor = Colors.black;
+      } else if (tag.toLowerCase() == 'competition') {
+        chipColor = const Color.fromARGB(255, 253, 253, 23);
+        chipTextColor = Colors.black;
+      } else if (tag.toLowerCase() == 'workshop') {
+        chipColor = const Color.fromARGB(255, 234, 72, 255);
+        chipTextColor = Colors.black;
+      } else if (tag.toLowerCase() == 'fest') {
+        chipColor = const Color.fromARGB(255, 253, 23, 211);
+        chipTextColor = Colors.black;
+      } else if (tag.toLowerCase() == 'guest lecture') {
+        chipColor = const Color.fromARGB(255, 253, 253, 23);
+        chipTextColor = Colors.black;
+      } else if (tag.toLowerCase() == 'career') {
+        chipColor = const Color.fromARGB(255, 253, 253, 23);
+        chipTextColor = Colors.black;
+      } else if (tag.toLowerCase() == 'academic') {
+        chipColor = const Color.fromARGB(255, 245, 133, 157);
+        chipTextColor = Colors.black;
+      } else if (tag.toLowerCase() == 'networking') {
+        chipColor = const Color.fromARGB(255, 23, 253, 180);
+        chipTextColor = Colors.black;
+      } else {
+        chipColor = const Color.fromARGB(255, 23, 253, 180);
+        chipTextColor = Colors.black;
       }
       return Chip(
         label: Text(tag),
         labelStyle: textTheme.labelSmall?.copyWith(
-          fontSize: 9,
+          fontSize: 10,
           color: chipTextColor,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w800,
         ),
         backgroundColor: chipColor,
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: -2),
