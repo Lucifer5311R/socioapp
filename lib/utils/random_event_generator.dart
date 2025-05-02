@@ -192,7 +192,13 @@ List<Event> generateRandomEvents(int count) {
     // Add/Remove Free/Paid tag based on fee
     tags.removeWhere((tag) => tag == 'Free' || tag == 'Paid');
     tags.add(fee == 0.0 ? 'Free' : 'Paid');
-
+    int minTeam = 1;
+    int maxTeam = 1;
+    // ~20% chance of being a team event
+    if (random.nextDouble() < 0.2) {
+      minTeam = random.nextInt(2) + 2; // Min team size 2 or 3
+      maxTeam = minTeam + random.nextInt(3); // Max team size min to min+2
+    }
     events.add(
       Event(
         id: 'random_event_${UniqueKey().toString()}', // Unique random ID
@@ -216,6 +222,8 @@ List<Event> generateRandomEvents(int count) {
                 ? _generatePrizes()
                 : "Participation Certificates for all attendees.", // Add prizes for paid/competition events
         organizerInfo: _generateOrganizerInfo(department),
+        minTeamSize: minTeam,
+        maxTeamSize: maxTeam,
       ),
     );
   }

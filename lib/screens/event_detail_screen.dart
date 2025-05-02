@@ -7,9 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart'; // <-- Import Provider
+import 'package:flutter/gestures.dart';
 
 import '../models/event.dart';
 import '../notifiers/my_events_notifier.dart'; // <-- Import Notifier
+import '../widgets/team_registration_form.dart';
 
 class EventDetailScreen extends StatelessWidget {
   final Event event;
@@ -18,10 +20,27 @@ class EventDetailScreen extends StatelessWidget {
   EventDetailScreen({required this.event, super.key});
 
   // --- Modified registration handler ---
-  void _handleRegistration(BuildContext context, MyEventsNotifier notifier) {
-    // Only allow registration if not already registered (UI check)
-    if (!notifier.isRegistered(event)) {
-      log.i("UI ACTION: Registering event: ${event.eventName}");
+  void _handleRegistrationAction(
+    BuildContext context,
+    MyEventsNotifier notifier,
+  ) {
+    // Check if event is a team event
+    if (event.isTeamEvent) {
+      // --- Show Team Registration Form ---
+      log.i("Showing team registration form for: ${event.eventName}");
+      showModalBottomSheet(
+        context: context,
+        // Make sheet scrollable and expand based on content
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          // Optional: Rounded corners
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (ctx) => TeamRegistrationForm(event: event),
+      );
+    } else {
+      // --- Handle Individual Registration (Current UI-only logic) ---
+      log.i("UI ACTION: Registering individual for event: ${event.eventName}");
       notifier.registerEvent(event); // Add event to the notifier's list
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -613,18 +632,13 @@ class EventDetailScreen extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0),
             child: ElevatedButton.icon(
-              // Use ElevatedButton.icon
               style: ElevatedButton.styleFrom(
-                // --- Change appearance based on registration status ---
                 backgroundColor:
                     alreadyRegistered
                         ? Colors.grey[600]
-                        : Colors.blue[800], // Use theme primary or grey
-                foregroundColor: colorScheme.onPrimary, // Text color on button
-                minimumSize: const Size(
-                  double.infinity,
-                  48,
-                ), // Ensure button is wide
+                        : colorScheme.primary, // Use theme primary
+                foregroundColor: colorScheme.onPrimary,
+                minimumSize: const Size(double.infinity, 48),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 textStyle: const TextStyle(
                   fontSize: 16,
@@ -633,27 +647,24 @@ class EventDetailScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
-                disabledBackgroundColor:
-                    Colors.grey[400], // Background when disabled
-                disabledForegroundColor:
-                    Colors.white70, // Text color when disabled
+                disabledBackgroundColor: Colors.grey[400],
+                disabledForegroundColor: Colors.white70,
               ),
               // --- Disable button or change action based on status ---
               onPressed:
                   alreadyRegistered
-                      ? null // Disable button if already registered
-                      : () => _handleRegistration(
-                        context,
-                        myEventsNotifier,
-                      ), // Call register method
-              // --- Change Icon based on status ---
+                      ? null // Disable if already registered (simple check)
+                      // Call the new action handler
+                      : () =>
+                          _handleRegistrationAction(context, myEventsNotifier),
+              // --- END UPDATED onPressed ---
               icon: Icon(
                 alreadyRegistered
                     ? Icons.check_circle_outline
                     : Icons.app_registration,
                 size: 20,
-              ), // Adjusted icon size
-              // --- Change Text based on status ---
+              ),
+              // Label remains the same for now
               label: Text(alreadyRegistered ? 'Registered' : 'Register'),
             ),
           ),

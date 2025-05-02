@@ -1,6 +1,5 @@
 // lib/models/event.dart
-// ... (other fields and imports remain the same) ...
-import 'package:flutter/foundation.dart'; // Import for UniqueKey
+import 'package:flutter/foundation.dart';
 
 class Event {
   final String id;
@@ -11,16 +10,21 @@ class Event {
   final DateTime eventDate;
   final String? location;
   final double? registrationFee;
-  final String? bannerUrl; // This field will hold the image URL
+  final String? bannerUrl;
   final bool isPublic;
   final List<String>? tags;
   final String? department;
-  final int? maxRegistrations;
-  final int? currentRegistrations;
+  final int? maxRegistrations; // Can be max individuals OR max teams
+  final int? currentRegistrations; // Current individuals OR teams registered
   final String? rules;
   final String? schedule;
   final String? prizes;
   final String? organizerInfo;
+
+  // --- NEW FIELDS ---
+  final int minTeamSize; // Minimum members per team (1 for individual)
+  final int maxTeamSize; // Maximum members per team (1 for individual)
+  // --- END NEW FIELDS ---
 
   Event({
     required this.id,
@@ -31,7 +35,7 @@ class Event {
     required this.eventDate,
     this.location,
     this.registrationFee,
-    this.bannerUrl, // Keep bannerUrl
+    this.bannerUrl,
     required this.isPublic,
     this.tags,
     this.department,
@@ -41,10 +45,13 @@ class Event {
     this.schedule,
     this.prizes,
     this.organizerInfo,
+    this.minTeamSize = 1, // Default to 1 (individual)
+    this.maxTeamSize = 1, // Default to 1 (individual)
   });
 
   // --- Add copyWith method ---
   Event copyWith({
+    // ... include all existing fields ...
     String? id,
     DateTime? createdAt,
     String? organizerId,
@@ -53,7 +60,7 @@ class Event {
     DateTime? eventDate,
     String? location,
     double? registrationFee,
-    String? bannerUrl, // Allow updating bannerUrl
+    String? bannerUrl,
     bool? isPublic,
     List<String>? tags,
     String? department,
@@ -63,6 +70,9 @@ class Event {
     String? schedule,
     String? prizes,
     String? organizerInfo,
+    // --- Add new fields ---
+    int? minTeamSize,
+    int? maxTeamSize,
   }) {
     return Event(
       id: id ?? this.id,
@@ -73,7 +83,7 @@ class Event {
       eventDate: eventDate ?? this.eventDate,
       location: location ?? this.location,
       registrationFee: registrationFee ?? this.registrationFee,
-      bannerUrl: bannerUrl ?? this.bannerUrl, // Use new value or existing
+      bannerUrl: bannerUrl ?? this.bannerUrl,
       isPublic: isPublic ?? this.isPublic,
       tags: tags ?? this.tags,
       department: department ?? this.department,
@@ -83,22 +93,17 @@ class Event {
       schedule: schedule ?? this.schedule,
       prizes: prizes ?? this.prizes,
       organizerInfo: organizerInfo ?? this.organizerInfo,
+      // --- Update new fields ---
+      minTeamSize: minTeamSize ?? this.minTeamSize,
+      maxTeamSize: maxTeamSize ?? this.maxTeamSize,
     );
   }
 
   // --- fromJson factory ---
   factory Event.fromJson(Map<String, dynamic> json) {
+    // ... (existing tag parsing logic) ...
     List<String>? parseTags(dynamic tagData) {
-      if (tagData is List) {
-        return tagData.map((tag) => tag.toString()).toList();
-      } else if (tagData is String) {
-        return tagData
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-      }
-      return null;
+      /* ... */
     }
 
     return Event(
@@ -116,7 +121,7 @@ class Event {
               : DateTime.now().add(const Duration(days: 7)),
       location: json['location'] as String?,
       registrationFee: (json['registration_fee'] as num?)?.toDouble(),
-      bannerUrl: json['banner_url'] as String?, // Keep bannerUrl reading
+      bannerUrl: json['banner_url'] as String?,
       isPublic: json['is_public'] as bool? ?? false,
       tags: parseTags(json['tags']),
       department: json['department'] as String?,
@@ -126,11 +131,15 @@ class Event {
       schedule: json['schedule'] as String?,
       prizes: json['prizes'] as String?,
       organizerInfo: json['organizer_info'] as String?,
+      // --- Read new fields from JSON (provide defaults if null) ---
+      minTeamSize: (json['min_team_size'] as num?)?.toInt() ?? 1,
+      maxTeamSize: (json['max_team_size'] as num?)?.toInt() ?? 1,
     );
   }
 
-  // --- toJson method --- (remains the same)
+  // --- toJson method ---
   Map<String, dynamic> toJson() {
+    // Include new fields if needed when *creating* events via API
     return {
       'organizer_id': organizerId,
       'event_name': eventName,
@@ -140,11 +149,25 @@ class Event {
       'registration_fee': registrationFee,
       'banner_url': bannerUrl,
       'is_public': isPublic,
+      'tags':
+          tags, // Ensure tags are handled correctly (e.g., as array or comma-separated string)
+      'department': department,
+      'max_registrations': maxRegistrations,
+      'rules': rules,
+      'schedule': schedule,
+      'prizes': prizes,
+      'organizer_info': organizerInfo,
+      // --- Add new fields ---
+      'min_team_size': minTeamSize,
+      'max_team_size': maxTeamSize,
+      // currentRegistrations is usually managed by backend triggers/logic
     };
   }
 
-  // --- fromMap factory (Simplified to use fromJson) ---
-  // Assumes placeholder keys match DB keys
+  // Helper to check if it's a team event
+  bool get isTeamEvent => maxTeamSize > 1;
+
+  // ... (fromMap factory remains the same) ...
   factory Event.fromMap(Map<String, dynamic> map) {
     return Event.fromJson(map);
   }
