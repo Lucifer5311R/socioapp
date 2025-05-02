@@ -1,20 +1,23 @@
 // lib/widgets/event_card.dart
+// REFINED V8 - Separate Detail Lines for Standard Cards
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../models/event.dart'; // Import the consolidated Event model
+import 'package:cached_network_image/cached_network_image.dart';
+import '../models/event.dart'; // Ensure Event model is imported
 
 class EventCard extends StatelessWidget {
   final Event event;
   final VoidCallback? onTap;
-  final IconData? leadingIconData; // <-- Add optional icon data parameter
-  final Color? leadingIconColor; // <-- Add optional icon color
-
+  final IconData? leadingIconData; // Optional icon
+  final Color? leadingIconColor;
+  final bool isCompact;
   const EventCard({
     required this.event,
     this.onTap,
-    this.leadingIconData, // <-- Add to constructor
-    this.leadingIconColor, // <-- Add to constructor
+    this.leadingIconData,
+    this.leadingIconColor,
+    this.isCompact = false,
     super.key,
   });
 
@@ -26,164 +29,207 @@ class EventCard extends StatelessWidget {
 
     final List<String> tags = event.tags ?? [];
     String formattedDate = 'Date N/A';
-    try {
-      formattedDate = DateFormat.yMMMd().format(event.eventDate);
-    } catch (_) {
-      /* Handle formatting error */
-    }
-    final String timeString = DateFormat.jm().format(event.eventDate);
+    String timeString = 'Time N/A';
+    String location = event.location ?? 'Location N/A'; // Handle null location
 
-    // Banner Placeholder/Image Logic (Keep as is)
-    const Widget placeholderIcon = Center(
-      child: Icon(Icons.image_outlined, color: Colors.grey, size: 40),
+    // Safely format date and time
+    try {
+      // Use slightly longer date format again if space allows
+      formattedDate = DateFormat('MMM d, yyyy').format(event.eventDate);
+      timeString = DateFormat('h:mm a').format(event.eventDate);
+    } catch (e) {
+      // print("Error formatting date/time in EventCard: $e");
+    }
+
+    // --- Banner Image (Keep as is) ---
+    const Widget bannerPlaceholder = SizedBox(
+      height: 120, // Consistent height
+      width: double.infinity,
+      child: Center(
+        child: Icon(Icons.image_outlined, color: Colors.grey, size: 40),
+      ),
     );
     final Widget bannerWidget =
         (event.bannerUrl != null && event.bannerUrl!.trim().isNotEmpty)
-            ? Image.network(
-              /* ... banner loading/error logic ... */
-              event.bannerUrl!,
+            ? CachedNetworkImage(
+              imageUrl: event.bannerUrl!,
               fit: BoxFit.cover,
               height: 120,
               width: double.infinity,
-              loadingBuilder:
-                  (context, child, progress) =>
-                      progress == null
-                          ? child
-                          : Container(
-                            height: 120,
-                            color: Colors.grey[300],
-                            child: const Center(
-                              child: CircularProgressIndicator(),
-                            ),
-                          ),
-              errorBuilder:
-                  (context, error, stackTrace) => Container(
+              placeholder:
+                  (context, url) => Container(
                     height: 120,
-                    color: Colors.grey[300],
-                    child: placeholderIcon,
+                    color: colorScheme.surfaceContainerLowest,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ),
+              errorWidget:
+                  (context, url, error) => Container(
+                    height: 120,
+                    color: colorScheme.surfaceContainerLowest,
+                    child: bannerPlaceholder,
                   ),
             )
             : Container(
               height: 120,
-              color: Colors.grey[300],
-              child: placeholderIcon,
+              color: colorScheme.surfaceContainerLowest,
+              child: bannerPlaceholder,
             );
+
+    // --- Tag Chip Builder (Keep dense styling) ---
+    Widget buildTagChip(String tag) {
+      Color chipColor = colorScheme.secondaryContainer.withOpacity(0.5);
+      Color chipTextColor = colorScheme.onSecondaryContainer;
+      // Add specific color logic if needed...
+      if (tag.toLowerCase() == 'free') {
+        chipColor = Colors.green.shade100.withOpacity(0.7);
+        chipTextColor = Colors.green.shade900;
+      } else if (tag.toLowerCase() == 'paid') {
+        chipColor = Colors.blue.shade100.withOpacity(0.7);
+        chipTextColor = Colors.blue.shade900;
+      }
+      return Chip(
+        label: Text(tag),
+        labelStyle: textTheme.labelSmall?.copyWith(
+          fontSize: 9,
+          color: chipTextColor,
+          fontWeight: FontWeight.w500,
+        ),
+        backgroundColor: chipColor,
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: -2),
+        visualDensity: const VisualDensity(horizontal: 0.0, vertical: -4),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        side: BorderSide.none,
+      );
+    }
 
     return GestureDetector(
       onTap: onTap,
       child: Card(
         clipBehavior: Clip.antiAlias,
-        elevation: 2.0,
+        elevation: 1.5,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10.0),
         ),
-        child: SizedBox(
-          width: 250, // Maintain consistent width for horizontal lists
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              bannerWidget,
-              Padding(
-                padding: const EdgeInsets.all(10.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min, // Card height wraps content.
+          children: [
+            // 1. Banner Image
+            bannerWidget,
+
+            // 2. Content Section
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10.0, 6.0, 10.0, 8.0),
+              // Wrap inner column with Flexible to allow shrinking if needed
+              child: Flexible(
+                // Use Flexible instead of Expanded if parent might be unbounded
+                fit: FlexFit.loose,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize:
+                      MainAxisSize.min, // Inner column wraps its content
                   children: [
-                    // --- Row for Tags and Optional Leading Icon ---
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          // Tags take available space
-                          child: Wrap(
-                            spacing: 4.0,
-                            runSpacing: 4.0,
-                            children:
-                                tags
-                                    .map(
-                                      (tag) => Chip(
-                                        /* ... tag chip styling ... */
-                                        label: Text(tag),
-                                        labelStyle: TextStyle(
-                                          fontSize: 10,
-                                          color: Colors.blue[800],
-                                        ),
-                                        backgroundColor: Colors.blue[50],
-                                        visualDensity: VisualDensity.compact,
-                                        padding: EdgeInsets.zero,
-                                        materialTapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                        side: BorderSide.none,
-                                      ),
-                                    )
-                                    .toList(),
-                          ),
-                        ),
-                        // --- Display Leading Icon if provided ---
-                        if (leadingIconData != null)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8.0, top: 4.0),
-                            child: Icon(
-                              leadingIconData,
-                              size: 18,
-                              color:
-                                  leadingIconColor ??
-                                  Theme.of(context).colorScheme.secondary,
-                            ),
-                          ),
-                      ],
-                    ),
+                    // -- Row for Tags and Optional Icon --
                     if (tags.isNotEmpty || leadingIconData != null)
-                      const SizedBox(
-                        height: 8,
-                      ), // Add spacing if tags or icon shown
-                    // --- Event Title ---
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4.0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Wrap(
+                                spacing: 3.0,
+                                runSpacing: 2.0,
+                                children:
+                                    tags.take(2).map(buildTagChip).toList(),
+                              ),
+                            ),
+                            if (leadingIconData != null)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 4.0),
+                                child: Icon(
+                                  leadingIconData,
+                                  size: 16,
+                                  color:
+                                      leadingIconColor ?? colorScheme.secondary,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+
+                    // -- Event Title --
                     Text(
                       event.eventName,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        height: 1.2, // Adjusted line height
                       ),
-                      maxLines: 1,
+                      // Allow title to potentially wrap to 2 lines if needed, but keep it constrained
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
-                    // --- Date/Time and Location Rows (Keep as is) ---
+
+                    // *** Increased spacing before details ***
+                    const SizedBox(height: 5),
+
+                    // -- Date & Time -- (Separate Line)
                     _buildIconText(
                       Icons.calendar_today_outlined,
-                      '$formattedDate | $timeString',
+                      '$formattedDate • $timeString',
                       context,
                     ),
-                    const SizedBox(height: 4),
+                    // *** Minimal spacing between details ***
+                    const SizedBox(height: 3),
+
+                    // -- Location -- (Separate Line)
                     _buildIconText(
                       Icons.location_on_outlined,
-                      event.location ?? 'Location N/A',
+                      location,
                       context,
                     ),
-                    const SizedBox(height: 8),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // Helper to build icon-text rows (Keep as is)
+  // Helper to build icon-text rows (Keep optimized)
   Widget _buildIconText(IconData icon, String text, BuildContext context) {
-    // ... (keep implementation)
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
     return Row(
+      crossAxisAlignment:
+          CrossAxisAlignment.center, // Align items vertically centered
       children: [
-        Icon(icon, size: 14, color: Colors.grey[600]),
-        const SizedBox(width: 4),
+        Icon(
+          icon,
+          size: 12,
+          color: colorScheme.onSurfaceVariant.withOpacity(0.8),
+        ),
+        const SizedBox(width: 5), // Slightly more space
         Expanded(
           child: Text(
             text,
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: Colors.grey[700]),
+            style: textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontSize: 11,
+              height: 1.2,
+            ),
             overflow: TextOverflow.ellipsis,
-            maxLines: 1,
+            maxLines: 1, // Keep details to single lines
           ),
         ),
       ],

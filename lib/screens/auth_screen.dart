@@ -54,7 +54,10 @@ class _AuthScreenState extends State<AuthScreen> {
       _isLoading = true;
     });
     try {
-      await _supabase.auth.signInWithOAuth(OAuthProvider.google);
+      await _supabase.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'com.example.flutter_application_2://login-callback',
+      );
     } on AuthException catch (error) {
       _showErrorSnackBar(error.message);
     } catch (error) {

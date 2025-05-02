@@ -1,4 +1,5 @@
 // lib/widgets/category_card.dart
+// REFINED V2 - Using FittedBox for Responsiveness
 
 import 'package:flutter/material.dart';
 import '../models/category.dart'; // Import the Category model
@@ -13,8 +14,7 @@ class CategoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    // Determine card background color from theme's cardTheme or fallback
-    // This allows it to respect the darkTheme definition in main.dart
+    // Determine card background color from theme
     final cardBackgroundColor =
         theme.cardTheme.color ?? colorScheme.surfaceContainerLow;
     // Determine appropriate text colors based on the card's background
@@ -23,12 +23,12 @@ class CategoryCard extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10.0), // Slightly larger radius
+      borderRadius: BorderRadius.circular(10.0), // Match InkWell radius to Card
       child: Card(
         elevation: 1.5,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10.0),
-          // Optional: Add a subtle border in dark mode for definition
+          // Optional: Add a subtle border in dark mode
           side:
               theme.brightness == Brightness.dark
                   ? BorderSide(
@@ -37,42 +37,73 @@ class CategoryCard extends StatelessWidget {
                   )
                   : BorderSide.none,
         ),
-        // REMOVED hardcoded color: Colors.grey[100],
-        // Let the Card use the color from the ThemeData (via cardTheme or default)
-        // You can explicitly set it to use theme if needed:
-        color: cardBackgroundColor, // Ensures it uses theme color
+        color: cardBackgroundColor, // Use theme color
+        clipBehavior:
+            Clip.antiAlias, // Helps ensure content respects border radius
         child: Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.all(8.0), // Reduced padding
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment:
+                MainAxisAlignment.center, // Center content vertically
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Icon(
-                categoryData.icon,
-                size: 30,
-                // Use primary color, should contrast well on most backgrounds
-                color: colorScheme.primary,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                categoryData.title,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: primaryTextColor, // Use theme-aware text color
+              // Use Flexible for the Icon space to allow it to take proportional space
+              Flexible(
+                flex: 2, // Give icon slightly more proportional space
+                child: FractionallySizedBox(
+                  // Constrain icon size relative to its allocated space
+                  widthFactor:
+                      0.55, // Allows icon to be up to 55% of card width
+                  heightFactor:
+                      0.55, // Allows icon to be up to 55% of its vertical space
+                  child: FittedBox(
+                    // Scales the icon down to fit within the FractionallySizedBox
+                    fit: BoxFit.contain, // Ensures entire icon is visible
+                    child: Icon(
+                      categoryData.icon,
+                      color: colorScheme.primary, // Use primary color for icon
+                    ),
+                  ),
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 2),
-              Text(
-                categoryData.subtitle,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: secondaryTextColor, // Use theme-aware text color
+              const SizedBox(height: 4), // Reduced spacing
+              // Use Flexible for the text block space
+              Flexible(
+                flex: 1, // Give text slightly less proportional space
+                child: FittedBox(
+                  // Scale the text block down ONLY if necessary
+                  fit:
+                      BoxFit
+                          .scaleDown, // Prevents text becoming tiny unless space is very tight
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min, // Column wraps text height
+                    children: [
+                      Text(
+                        categoryData.title,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          // Use bodyMedium for clear title
+                          fontWeight: FontWeight.bold,
+                          color: primaryTextColor,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1, // Ensure single line
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 1), // Minimal spacing
+                      Text(
+                        categoryData.subtitle,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: secondaryTextColor,
+                          fontSize: 10, // Keep subtitle small
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1, // Ensure single line
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

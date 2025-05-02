@@ -1,14 +1,15 @@
 // lib/main.dart
+// FINAL VERSION - Includes Provider Setup for MyEventsNotifier
 
 import 'dart:async'; // Required for StreamSubscription
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart'; // <-- Import Provider
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Import your screen files
-// Ensure these paths match your project structure
 import 'screens/landing_screen.dart';
 import 'models/event.dart'; // Import Event model
 import 'screens/public_discover_screen.dart';
@@ -16,12 +17,16 @@ import 'screens/auth_screen.dart'; // Handles Login
 import 'screens/signup_screen.dart'; // Handles Sign Up
 import 'screens/profile_edit_screen.dart'; // Handles Profile Editing
 import 'screens/complete_profile_screen.dart'; // Handles initial profile completion
-import 'screens/home_screen.dart';
-import 'screens/student_dashboard_screen.dart'; // Ensure this file exports StudentDashboardScreen class
+import 'screens/home_screen.dart'; // Imports HomeScreen and HomeScreenWrapper
+import 'screens/student_dashboard_screen.dart';
 import 'screens/event_detail_screen.dart'
     as event_detail; // Import your EventDetailScreen file here with prefix
 
-// --- Helper class for GoRouter refresh (Keep as is) ---
+// --- IMPORT THE MY EVENTS NOTIFIER ---
+import 'notifiers/my_events_notifier.dart';
+// ------------------------------------
+
+// --- Helper class for GoRouter refresh ---
 class GoRouterRefreshStream extends ChangeNotifier {
   GoRouterRefreshStream(Stream<dynamic> stream) {
     notifyListeners(); // Notify initial state
@@ -48,7 +53,7 @@ class GoRouterRefreshStream extends ChangeNotifier {
   }
 }
 
-// --- Helper Function to Check Profile Completion (Keep as is) ---
+// --- Helper Function to Check Profile Completion ---
 Future<bool?> _isProfileComplete() async {
   final supabase = Supabase.instance.client;
   final user = supabase.auth.currentUser;
@@ -62,8 +67,8 @@ Future<bool?> _isProfileComplete() async {
         await supabase
             .from('profiles')
             .select(
-              'register_no, department',
-            ) // Select fields needed for completion check
+              'register_no, department', // Select fields needed for completion check
+            )
             .eq('user_id', user.id)
             .maybeSingle(); // Use maybeSingle to handle no profile found
 
@@ -87,10 +92,10 @@ Future<bool?> _isProfileComplete() async {
   }
 }
 
-// --- GoRouter Configuration (Keep as is) ---
+// --- GoRouter Configuration ---
 late final GoRouter _router; // Make it late final
 
-// Initialize GoRouter (Keep as is)
+// Initialize GoRouter
 void _initializeRouter() {
   _router = GoRouter(
     initialLocation: '/landing', // Start at your landing screen
@@ -132,17 +137,18 @@ void _initializeRouter() {
                 const ProfileEditScreen(),
       ),
       GoRoute(
-        path: '/discover',
+        path: '/discover', // Often used as the main authenticated entry point
         name: 'discover',
         builder:
-            (BuildContext context, GoRouterState state) => const HomeScreen(),
+            (BuildContext context, GoRouterState state) =>
+                const HomeScreenWrapper(), // Use Wrapper
       ),
       GoRoute(
         path: '/student-dashboard',
         name: 'studentDashboard',
         builder:
             (BuildContext context, GoRouterState state) =>
-                const StudentDashboardScreen(), // Added const
+                const StudentDashboardScreen(),
       ),
       GoRoute(
         path: '/public-discover',
@@ -152,10 +158,11 @@ void _initializeRouter() {
                 const PublicDiscoverScreen(),
       ),
       GoRoute(
-        path: '/', // Root route
+        path: '/', // Root route often points to home after login
         name: 'home',
         builder:
-            (BuildContext context, GoRouterState state) => const HomeScreen(),
+            (BuildContext context, GoRouterState state) =>
+                const HomeScreenWrapper(), // Use Wrapper
       ),
       GoRoute(
         path: '/event/:eventId', // Keep path structure
@@ -163,6 +170,7 @@ void _initializeRouter() {
         builder: (BuildContext context, GoRouterState state) {
           final Event? event = state.extra as Event?;
           if (event == null) {
+            // Maybe redirect to a generic error page or back
             return Scaffold(
               appBar: AppBar(title: const Text('Error')),
               body: const Center(
@@ -170,23 +178,29 @@ void _initializeRouter() {
               ),
             );
           }
+          // Use alias for clarity
           return event_detail.EventDetailScreen(event: event);
         },
       ),
     ],
 
-    // --- UPDATED Redirect logic (Keep as is) ---
+    // --- Redirect logic ---
     redirect: (BuildContext context, GoRouterState state) async {
       final supabase = Supabase.instance.client;
       final bool loggedIn = supabase.auth.currentSession != null;
       final String currentLocation = state.matchedLocation;
       final String targetLocation = state.uri.toString();
 
-      final bool onPublicRoute =
-          targetLocation == '/landing' || targetLocation == '/public-discover';
-      final bool onAuthFlowRoute =
-          targetLocation == '/login' || targetLocation == '/signup';
-      final bool onCompleteProfileRoute = targetLocation == '/complete-profile';
+      final bool onPublicRoute = [
+        '/landing',
+        '/public-discover',
+      ].contains(currentLocation);
+      final bool onAuthFlowRoute = [
+        '/login',
+        '/signup',
+      ].contains(currentLocation);
+      final bool onCompleteProfileRoute =
+          currentLocation == '/complete-profile';
 
       print(
         'Redirect check: loggedIn=$loggedIn, Location=$currentLocation, Target=$targetLocation',
@@ -195,25 +209,17 @@ void _initializeRouter() {
       bool? profileComplete;
       if (loggedIn) {
         profileComplete = await _isProfileComplete();
-        if (profileComplete == null) {
-          print(
-            "Profile completion check failed or user not found, treating as incomplete.",
-          );
-          profileComplete = false;
-        }
+        profileComplete ??= false;
       }
 
       if (!loggedIn) {
-        if (onPublicRoute || onAuthFlowRoute) {
-          return null;
-        } else {
-          print(
-            'Redirecting to /landing (not logged in, accessing protected route)',
-          );
-          return '/landing';
-        }
+        if (onPublicRoute || onAuthFlowRoute) return null;
+        print(
+          'Redirecting to /landing (not logged in, accessing protected route)',
+        );
+        return '/landing';
       } else {
-        // Logged In
+        // User is logged in
         if (profileComplete == false) {
           if (!onCompleteProfileRoute) {
             print(
@@ -221,33 +227,33 @@ void _initializeRouter() {
             );
             return '/complete-profile';
           }
-          return null;
+          return null; // Allow if already on complete profile
         } else {
-          // Logged In and Profile Complete
-          if (onAuthFlowRoute || onCompleteProfileRoute || onPublicRoute) {
+          // Profile is complete
+          if (onAuthFlowRoute ||
+              onCompleteProfileRoute ||
+              currentLocation == '/landing') {
             print(
-              'Redirecting to / (logged in, profile complete, accessing auth/complete/public)',
+              'Redirecting to / (logged in, profile complete, accessing auth/complete/landing)',
             );
-            return '/';
+            return '/'; // Redirect to home ('/')
           }
-          return null;
+          return null; // Allow access to other routes
         }
       }
     },
 
-    // Listen for auth state changes (Keep as is)
+    // Listen for auth state changes
     refreshListenable: GoRouterRefreshStream(
       Supabase.instance.client.auth.onAuthStateChange,
     ),
   );
 }
 
-// --- NEW: Theme Manager (Keep as is) ---
-final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(
-  ThemeMode.system,
-); // Default to system theme
+// --- Theme Manager ---
+final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
 
-// --- NEW: Define Colors ---
+// --- Colors ---
 const Color darkBlue = Color(0xFF063168);
 const Color mediumBlue = Color(0xFF154CB3);
 const Color brightYellow = Color(0xFFFFCC00);
@@ -260,13 +266,22 @@ const Color white = Color(0xFFFFFFFF);
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
-    // IMPORTANT: Replace with secure loading (e.g., environment variables)
-    url: 'https://srmirwkdbcktvlyflvdi.supabase.co', // DO NOT COMMIT THIS
+    url: 'https://srmirwkdbcktvlyflvdi.supabase.co', // YOUR SUPABASE URL
+    // --- REPLACE PLACEHOLDER WITH YOUR ACTUAL ANON KEY ---
     anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNybWlyd2tkYmNrdHZseWZsdmRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU0ODg5NDgsImV4cCI6MjA2MTA2NDk0OH0.z2qvwaO0qV3meul-QUmpEpsLoyZXwvqpm9FeTsSc0co', // DO NOT COMMIT THIS - load securely
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNybWlyd2tkYmNrdHZseWZsdmRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU0ODg5NDgsImV4cCI6MjA2MTA2NDk0OH0.z2qvwaO0qV3meul-QUmpEpsLoyZXwvqpm9FeTsSc0co',
+    // -----------------------------------------------------
   );
   _initializeRouter(); // Initialize router AFTER Supabase
-  runApp(const MyApp());
+
+  // --- WRAP runApp WITH PROVIDER ---
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => MyEventsNotifier(), // Create the notifier instance
+      child: const MyApp(), // Your original root widget
+    ),
+  );
+  // --- END WRAP ---
 }
 
 // --- Root Application Widget ---
@@ -275,129 +290,127 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Apply DM Sans font globally
     final textTheme = Theme.of(context).textTheme;
     final dmSansTextTheme = GoogleFonts.dmSansTextTheme(textTheme);
 
-    // --- Define ColorScheme for Light Theme ---
+    // Color Schemes (Keep your existing definitions)
     const lightColorScheme = ColorScheme(
       brightness: Brightness.light,
-      primary: mediumBlue, // Key interactive elements
-      onPrimary: white, // Text/icons on primary
-      primaryContainer: Color(0xFFD0E4FF), // Lighter primary containers
-      onPrimaryContainer: Color(0xFF001D36), // Text on primary container
-      secondary: darkBlue, // Less prominent elements, accents
-      onSecondary: white, // Text/icons on secondary
-      secondaryContainer: Color(0xFFD3E4FF), // Lighter secondary containers
-      onSecondaryContainer: Color(0xFF001D36), // Text on secondary container
-      tertiary: brightYellow, // Accent color
-      onTertiary: darkBlue, // Text/icons on accent
-      tertiaryContainer: Color(0xFFFFE086), // Lighter accent containers
-      onTertiaryContainer: Color(0xFF251A00), // Text on accent container
-      error: Color(0xFFBA1A1A), // Error color
-      onError: white, // Text on error
-      errorContainer: Color(0xFFFFDAD6), // Lighter error container
-      onErrorContainer: Color(0xFF410002), // Text on error container
-      surface: lightGray, // Backgrounds for cards, sheets
-      onSurface: Color(0xFF1A1C1E), // Text on backgrounds
-      surfaceContainerHighest: white, // Elevated surfaces
-      onSurfaceVariant: darkGray, // Lower emphasis text/icons
-      outline: mediumGray, // Borders, dividers
+      primary: mediumBlue,
+      onPrimary: white,
+      primaryContainer: Color(0xFFD0E4FF),
+      onPrimaryContainer: Color(0xFF001D36),
+      secondary: darkBlue,
+      onSecondary: white,
+      secondaryContainer: Color(0xFFD3E4FF),
+      onSecondaryContainer: Color(0xFF001D36),
+      tertiary: brightYellow,
+      onTertiary: darkBlue,
+      tertiaryContainer: Color(0xFFFFE086),
+      onTertiaryContainer: Color(0xFF251A00),
+      error: Color(0xFFBA1A1A),
+      onError: white,
+      errorContainer: Color(0xFFFFDAD6),
+      onErrorContainer: Color(0xFF410002),
+      surface: lightGray,
+      onSurface: Color(0xFF1A1C1E),
+      surfaceContainerHighest: white, // Use for card backgrounds in light mode
+      surfaceContainerLow: Color(
+        0xFFF0F4F8,
+      ), // Slightly off-white for backgrounds
+      onSurfaceVariant: darkGray,
+      outline: mediumGray,
+      outlineVariant: Color(0xFFC4C6CF), // Lighter outline
       shadow: Color(0xFF000000),
-      inverseSurface: Color(
-        0xFF2F3033,
-      ), // Contrasting surface for SnackBar etc.
-      onInverseSurface: lightGray, // Text on inverse surface
-      inversePrimary: Color(0xFFA9C7FF), // Primary on dark background
-      surfaceTint: mediumBlue, // Tint color over surfaces
+      inverseSurface: Color(0xFF2F3033),
+      onInverseSurface: lightGray,
+      inversePrimary: Color(0xFFA9C7FF),
+      surfaceTint: mediumBlue,
     );
-
-    // --- Define ColorScheme for Dark Theme ---
     const darkColorScheme = ColorScheme(
       brightness: Brightness.dark,
-      primary: mediumBlue, // Keep key elements prominent
+      primary: mediumBlue, // Keep primary blue consistent
       onPrimary: white,
-      primaryContainer: Color(0xFF004A77), // Darker primary container
+      primaryContainer: Color(0xFF004A77),
       onPrimaryContainer: Color(0xFFD0E4FF),
-      secondary: Color(0xFFA2C9FF), // Lighter secondary for contrast
+      secondary: Color(0xFFA2C9FF), // Lighter blue for secondary accent
       onSecondary: Color(0xFF003258),
-      secondaryContainer: Color(0xFF00497D), // Darker secondary container
+      secondaryContainer: Color(0xFF00497D), // Darker container
       onSecondaryContainer: Color(0xFFD3E4FF),
-      tertiary: brightYellow, // Accent remains bright
+      tertiary: brightYellow, // Keep yellow accent
       onTertiary: darkBlue,
-      tertiaryContainer: Color(0xFF594300), // Darker accent container
+      tertiaryContainer: Color(0xFF594300), // Dark yellow container
       onTertiaryContainer: Color(0xFFFFE086),
-      error: Color(0xFFFFB4AB), // Lighter error for dark mode
+      error: Color(0xFFFFB4AB),
       onError: Color(0xFF690005),
-      errorContainer: Color(0xFF93000A), // Darker error container
+      errorContainer: Color(0xFF93000A),
       onErrorContainer: Color(0xFFFFDAD6),
-      surface: Color(0xFF1A1C1E), // Dark background
-      onSurface: Color(0xFFE2E2E6), // Light text on dark background
-      surfaceContainerHighest: Color(0xFF333639), // Elevated dark surfaces
-      onSurfaceVariant: mediumGray, // Medium gray text/icons
-      outline: darkGray, // Darker gray borders/dividers
+      surface: Color(0xFF1A1C1E), // Dark surface
+      onSurface: Color(0xFFE2E2E6), // Light text on dark surface
+      surfaceContainerHighest: Color(
+        0xFF333639,
+      ), // Use for card backgrounds in dark mode
+      surfaceContainerLow: Color(
+        0xFF232528,
+      ), // Slightly lighter dark for backgrounds
+      onSurfaceVariant: mediumGray, // Grey text for less emphasis
+      outline: darkGray,
+      outlineVariant: Color(0xFF44474E), // Darker outline
       shadow: Color(0xFF000000),
-      inverseSurface: Color(0xFFE2E2E6), // Light inverse surface
-      onInverseSurface: Color(0xFF1A1C1E), // Dark text on light inverse surface
-      inversePrimary: Color(0xFF154CB3), // Primary color on light inverse
+      inverseSurface: Color(0xFFE2E2E6),
+      onInverseSurface: Color(0xFF1A1C1E),
+      inversePrimary: Color(0xFF154CB3), // Primary blue for inverse
       surfaceTint: mediumBlue,
     );
 
-    // Define common input decoration theme
+    // Input Decoration Theme (Keep your existing definition)
     final inputDecorationTheme = InputDecorationTheme(
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8.0),
-        borderSide: BorderSide(color: mediumGray), // Use theme color
+        borderSide: BorderSide(color: mediumGray),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8.0),
-        borderSide: BorderSide(color: darkGray), // Use theme color
+        borderSide: BorderSide(color: darkGray),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8.0),
-        borderSide: BorderSide(
-          color: mediumBlue,
-          width: 2.0,
-        ), // Use theme color
+        borderSide: BorderSide(color: mediumBlue, width: 2.0),
       ),
-      // Add styles for labels, hints etc. using dmSansTextTheme if needed
     );
-
-    // Define common button themes
+    // Button Themes (Keep your existing definitions)
     final elevatedButtonTheme = ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: mediumBlue, // Use theme primary
-        foregroundColor: white, // Use onPrimary
+        backgroundColor: mediumBlue,
+        foregroundColor: white,
         textStyle: dmSansTextTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w500,
-        ), // DM Sans Medium for buttons
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
       ),
     );
-
     final textButtonTheme = TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: mediumBlue, // Use theme primary
+        foregroundColor: mediumBlue,
         textStyle: dmSansTextTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w500,
-        ), // DM Sans Medium
+        ),
       ),
     );
-
     final outlinedButtonTheme = OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: mediumBlue, // Use theme primary
-        side: BorderSide(color: mediumBlue), // Border uses primary
+        foregroundColor: mediumBlue,
+        side: BorderSide(color: mediumBlue),
         textStyle: dmSansTextTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w500,
-        ), // DM Sans Medium
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
       ),
     );
 
-    // Build the theme data
+    // Build Theme Function (Keep your existing definition)
     ThemeData buildTheme(ColorScheme colorScheme) {
       return ThemeData(
         colorScheme: colorScheme,
@@ -405,38 +418,17 @@ class MyApp extends StatelessWidget {
           bodyColor: colorScheme.onSurface,
           displayColor: colorScheme.onSurface,
         ),
-        // Apply DM Sans weights to specific text styles
         primaryTextTheme: dmSansTextTheme.copyWith(
-          headlineLarge: dmSansTextTheme.headlineLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ), // H1/H2 Bold
-          headlineMedium: dmSansTextTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ), // H1/H2 Bold
-          titleLarge: dmSansTextTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w500,
-          ), // H3/H4 Medium
-          titleMedium: dmSansTextTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w500,
-          ), // H3/H4 Medium
-          bodyLarge: dmSansTextTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.normal,
-          ), // Body Regular
-          bodyMedium: dmSansTextTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.normal,
-          ), // Body Regular
-          labelLarge: dmSansTextTheme.labelLarge?.copyWith(
-            fontWeight: FontWeight.w500,
-          ), // Button Medium
+          /* Add specific overrides if needed */
         ),
         appBarTheme: AppBarTheme(
-          backgroundColor: colorScheme.surfaceContainerHighest,
+          backgroundColor: colorScheme.surface,
           foregroundColor: colorScheme.onSurface,
           elevation: 1,
-          shadowColor: colorScheme.shadow.withOpacity(0.1),
+          shadowColor: colorScheme.shadow.withAlpha(25),
           titleTextStyle: dmSansTextTheme.titleLarge?.copyWith(
-            color: colorScheme.primary, // Title uses Primary Blue
-            fontWeight: FontWeight.bold, // Bold title
+            color: colorScheme.primary,
+            fontWeight: FontWeight.bold,
           ),
         ),
         inputDecorationTheme: inputDecorationTheme,
@@ -448,13 +440,11 @@ class MyApp extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10.0),
           ),
-          color:
-              colorScheme
-                  .surfaceContainerHighest, // Cards use elevated surface color
+          color: colorScheme.surfaceContainerHighest,
           clipBehavior: Clip.antiAlias,
-        ),
+        ), // Updated card theme color
         chipTheme: ChipThemeData(
-          backgroundColor: colorScheme.secondaryContainer.withOpacity(0.5),
+          backgroundColor: colorScheme.secondaryContainer.withAlpha(128),
           labelStyle: dmSansTextTheme.labelSmall?.copyWith(
             color: colorScheme.onSecondaryContainer,
           ),
@@ -466,17 +456,18 @@ class MyApp extends StatelessWidget {
         ),
         bottomNavigationBarTheme: BottomNavigationBarThemeData(
           selectedItemColor: colorScheme.primary,
-          unselectedItemColor: colorScheme.onSurfaceVariant.withOpacity(0.7),
-          backgroundColor:
-              colorScheme.surfaceContainer, // Slightly different background
+          unselectedItemColor: colorScheme.onSurfaceVariant.withAlpha(
+            (255 * 0.7).round(),
+          ),
+          backgroundColor: colorScheme.surfaceContainer,
           type: BottomNavigationBarType.fixed,
           elevation: 3.0,
           selectedLabelStyle: dmSansTextTheme.bodySmall?.copyWith(
             fontWeight: FontWeight.w500,
-          ), // Medium weight for selected label
+          ),
           unselectedLabelStyle: dmSansTextTheme.bodySmall?.copyWith(
             fontWeight: FontWeight.normal,
-          ), // Regular for unselected
+          ),
         ),
         tabBarTheme: TabBarTheme(
           labelColor: colorScheme.primary,
@@ -485,15 +476,16 @@ class MyApp extends StatelessWidget {
           indicatorSize: TabBarIndicatorSize.tab,
           labelStyle: dmSansTextTheme.labelLarge?.copyWith(
             fontWeight: FontWeight.w500,
-          ), // Medium weight
+          ),
           unselectedLabelStyle: dmSansTextTheme.labelLarge?.copyWith(
             fontWeight: FontWeight.normal,
-          ), // Regular
+          ),
         ),
         useMaterial3: true,
       );
     }
 
+    // Return MaterialApp.router (Keep your existing structure)
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
       builder: (_, mode, __) {

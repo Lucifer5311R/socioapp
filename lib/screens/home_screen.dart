@@ -1,27 +1,54 @@
 // lib/screens/home_screen.dart
-// NOW WITH BOTTOM NAVIGATION BAR
+// REVISED V5.4 - Fixed ALL Diagnostics (Const, Controller Type, Opacity, Icons Scope)
+
+import 'dart:math'; // For Random in placeholders
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart'; // Import Provider
+import 'package:carousel_slider/carousel_slider.dart'; // Import Carousel Slider
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:logger/logger.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:intl/intl.dart';
 
 // Import models and widgets
+import '../widgets/my_events_tab.dart';
 import '../models/event.dart';
 import '../models/category.dart';
-import '../widgets/event_card.dart';
+import '../widgets/event_card.dart'; // Using updated EventCard
 import '../widgets/category_card.dart';
 import '../widgets/notifications_tab.dart';
-// Import the random event generator
-import '../utils/random_event_generator.dart';
-// Import main.dart to access themeNotifier
-import '../main.dart';
-// Import StudentDashboardScreen to potentially use for Profile tab
-import 'student_dashboard_screen.dart'; // Import dashboard screen
+import 'student_dashboard_screen.dart';
+// Import Notifier
+import '../notifiers/home_screen_notifier.dart';
+// Import utilities
+import '../utils/random_event_generator.dart'; // Used by Notifier placeholder
+import '../utils/sample_data.dart';
 
-// Make HomeScreen StatefulWidget
+// --- Constants ---
+const double kTopPicksCarouselHeight = 235.0;
+const double kStandardCarouselHeight = 240.0;
+const double kClubCardWidth = 180.0;
+const double kEventCardWidth = 210.0;
+const double kMvpCardWidth = 150.0;
+
+// --- Main Widget Structure ---
+// Wrap HomeScreen presentation logic with ChangeNotifierProvider
+class HomeScreenWrapper extends StatelessWidget {
+  const HomeScreenWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Provide the Notifier to the HomeScreen widget tree
+    return ChangeNotifierProvider(
+      create: (_) => HomeScreenNotifier(),
+      child: const HomeScreen(), // Your original HomeScreen widget
+    );
+  }
+}
+
+// HomeScreen uses StatefulWidget for local UI state like _selectedIndex and carousel page
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -31,28 +58,11 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final Logger log = Logger();
+  int _selectedIndex = 0; // Bottom nav index
 
-  // --- State for Bottom Navigation ---
-  int _selectedIndex = 0; // Default to Home tab
-
-  // --- State variables moved from build method ---
-  late Future<List<Event>> _featuredEventsFuture;
-  late Future<List<Event>> _upcomingEventsFuture;
-  late Future<List<Event>> _festEventsFuture;
-  Map<String, dynamic>? _userProfile;
-  bool _isLoadingProfile = true;
-  String? _selectedQuickFilter;
-  List<Event> _registeredPreviewEvents = [];
-  final List<String> _quickFilters = [
-    "All",
-    "Today",
-    "This Week",
-    "Free",
-    "Online",
-    "Offline",
-    "Workshop",
-  ];
-  final List<Category> _placeholderCategories = [
+  // --- Static Data (Defined within State class for easy access by helpers) ---
+  // Made static as they don't depend on instance state
+  static final List<Category> _placeholderCategories = [
     Category(
       title: 'Academic',
       subtitle: 'Events',
@@ -89,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
       icon: Icons.celebration_outlined,
     ),
   ];
-  final Map<String, IconData> _eventIcons = {
+  static const Map<String, IconData> _eventIcons = {
     'academic': Icons.school_outlined,
     'cultural': Icons.palette_outlined,
     'technical': Icons.computer_outlined,
@@ -103,212 +113,129 @@ class _HomeScreenState extends State<HomeScreen> {
     'free': Icons.money_off_csred_outlined,
   };
 
+  // --- Local UI State ---
+  // Correct Controller Type!
+  final CarouselSliderController _topPicksCarouselController =
+      CarouselSliderController();
+  int _topPicksCurrentPage = 0;
+
   @override
   void initState() {
     super.initState();
-    _selectedQuickFilter = _quickFilters.first;
-    _loadInitialData(); // Load initial data needed for the Home tab content
+    // Initial data loading handled by Notifier's constructor via Provider
   }
 
-  Future<void> _loadInitialData() async {
-    // Trigger both fetches, start event loading immediately
-    _loadEvents();
-    await _loadProfile(); // Wait for profile if needed by initial UI elements
-  }
-
-  Future<void> _loadProfile() async {
-    if (!mounted) return;
-    setState(() {
-      _isLoadingProfile = true;
-    });
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) {
-      if (mounted) setState(() => _isLoadingProfile = false);
-      return;
-    }
-
-    try {
-      final data =
-          await Supabase.instance.client
-              .from('profiles')
-              .select('*, campus') // Ensure campus is selected
-              .eq('user_id', userId)
-              .maybeSingle(); // Use maybeSingle in case profile doesn't exist yet
-
-      if (mounted) {
-        setState(() {
-          _userProfile = data;
-          _isLoadingProfile = false;
-        });
-      }
-    } catch (e) {
-      print("Error loading profile in HomeScreen: $e");
-      if (mounted) {
-        setState(() => _isLoadingProfile = false);
-        // Optionally show a snackbar error
-      }
-    }
-  }
-
-  // --- Data Loading Logic (Remains the same) ---
-  void _loadEvents() {
-    log.i("Loading RANDOM event data for HomeScreen...");
-    if (!mounted) return;
-
-    // Generate fresh sets of random events
-    final List<Event> featured = generateRandomEvents(5);
-    final List<Event> upcoming = generateRandomEvents(15);
-    final List<Event> fests =
-        upcoming
-            .where(
-              (e) =>
-                  e.tags?.any(
-                    (t) =>
-                        t.toLowerCase() == 'fest' || t.toLowerCase() == 'gala',
-                  ) ??
-                  false,
-            )
-            .toList();
-    List<Event> preview = [];
-    if (upcoming.isNotEmpty) {
-      List<Event> upcomingOnlyForPreview =
-          upcoming
-              .where(
-                (e) => e.eventDate.isAfter(
-                  DateTime.now().subtract(const Duration(days: 1)),
-                ),
-              )
-              .toList();
-      upcomingOnlyForPreview.shuffle();
-      preview = upcomingOnlyForPreview.take(2).toList();
-    }
-
-    // Use mounted check before setState if async operation might complete after dispose
-    if (mounted) {
-      setState(() {
-        _featuredEventsFuture = Future.delayed(
-          const Duration(milliseconds: 500),
-          () => featured,
-        );
-        _upcomingEventsFuture = Future.delayed(
-          const Duration(milliseconds: 700),
-          () => upcoming,
-        );
-        _festEventsFuture = Future.delayed(
-          const Duration(milliseconds: 600),
-          () => fests,
-        );
-        _registeredPreviewEvents = preview;
-      });
-    }
-    log.i("Loaded random events for futures and preview.");
-  }
-
-  // --- Navigation Item Tap Handler ---
+  // --- Navigation Callbacks ---
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
   }
 
+  void _navigateToEventDetail(BuildContext context, Event event) {
+    if (event.id.isNotEmpty) {
+      context.pushNamed(
+        'eventDetail',
+        pathParameters: {'eventId': event.id},
+        extra: event,
+      );
+    } else {
+      log.e("Nav Error: Event ID empty for ${event.eventName}");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Error: Invalid event ID."),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  void _handleCategoryTap(Category category) {
+    log.i("Category tapped: ${category.title}");
+    context.pushNamed(
+      'publicDiscover',
+      queryParameters: {'category': category.title},
+    );
+  }
+
+  void _navigateToSearch(BuildContext context) {
+    log.i(
+      "Search icon tapped - Navigating to Search Screen (Placeholder)",
+    ); /* context.pushNamed('searchScreen'); */
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Navigate to Search Screen (Not Implemented)"),
+      ),
+    );
+  }
+
+  void _navigateToViewAll(BuildContext context, String section) {
+    log.i(
+      "View All tapped for section: $section",
+    ); /* context.pushNamed('publicDiscover', queryParameters: {'filter': section.toLowerCase()}); */
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Navigate to View All $section (Not Implemented)"),
+      ),
+    );
+  }
+
   // --- Build Method ---
   @override
   Widget build(BuildContext context) {
-    final supabase = Supabase.instance.client;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final currentMode = themeNotifier.value;
-    final isCurrentlyDark =
-        currentMode == ThemeMode.dark ||
-        (currentMode == ThemeMode.system &&
-            MediaQuery.of(context).platformBrightness == Brightness.dark);
-
-    // --- Define Widgets for each Tab ---
-    // Use IndexedStack to preserve state of each tab
+    // Define tabs
     final List<Widget> widgetOptions = <Widget>[
-      _buildHomeTabContent(context), // Index 0: Home
-      _buildPlaceholderTab('My Events'), // Index 1: My Events
-      const NotificationsTabFrontend(), // Index 2: Notifications (Moved)
-      const StudentDashboardScreen(), // Index 3: Profile (Moved)
+      _buildHomeTabContent(context), // Needs context to access Provider
+      const MyEventsTab(), // Can be const if needed elsewhere
+      const NotificationsTabFrontend(),
+      const StudentDashboardScreen(),
     ];
 
     return Scaffold(
       appBar: AppBar(
-        // Simplified AppBar
         title: Text(
-          _getAppBarTitle(_selectedIndex), // Title changes based on tab
+          _getAppBarTitle(_selectedIndex),
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: colorScheme.primary,
           ),
         ),
         backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
         elevation: 1,
-        shadowColor: colorScheme.shadow.withOpacity(0.2),
-        actions: [
-          // Keep theme toggle
+        shadowColor: colorScheme.shadow.withAlpha((255 * 0.1).round()),
+        /* Fixed Opacity */ actions: [
           IconButton(
-            icon: Icon(
-              isCurrentlyDark
-                  ? Icons.light_mode_outlined
-                  : Icons.dark_mode_outlined,
-            ),
-            tooltip: 'Toggle Theme',
-            onPressed: () {
-              switch (themeNotifier.value) {
-                case ThemeMode.system:
-                  themeNotifier.value = ThemeMode.light;
-                  break;
-                case ThemeMode.light:
-                  themeNotifier.value = ThemeMode.dark;
-                  break;
-                case ThemeMode.dark:
-                  themeNotifier.value = ThemeMode.system;
-                  break;
-              }
-              log.i("Theme mode changed to: ${themeNotifier.value}");
-            },
+            icon: const Icon(Icons.search),
+            tooltip: 'Search Events',
+            onPressed: () => _navigateToSearch(context),
           ),
-          // Keep refresh if relevant for the current tab (e.g., Home)
-          if (_selectedIndex == 0)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Reload Events',
-              onPressed: _loadEvents, // Reloads data for Home tab
-            ),
-          // Logout button moved (perhaps to Profile tab's AppBar or content)
+          const SizedBox(width: 8),
         ],
       ),
-      // Body now displays the widget based on selected index
-      body: IndexedStack(
-        // Use IndexedStack to keep tab state
-        index: _selectedIndex,
-        children: widgetOptions,
-      ),
-      // --- Add BottomNavigationBar ---
+      body: IndexedStack(index: _selectedIndex, children: widgetOptions),
+      // BottomNavBar - *REMOVED* 'const' from items list literal
       bottomNavigationBar: BottomNavigationBar(
-        // UPDATED ORDER: Home, My Events, Notifications, Profile
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
+        items: /* REMOVED const */ <BottomNavigationBarItem>[
+          // Individual items can be const
+          const BottomNavigationBarItem(
             icon: Icon(Icons.home_outlined),
             activeIcon: Icon(Icons.home),
             label: 'Home',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.calendar_today_outlined),
             activeIcon: Icon(Icons.calendar_today),
             label: 'My Events',
           ),
-          // --- Notifications Moved to Index 2 ---
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.notifications_none_outlined),
             activeIcon: Icon(Icons.notifications),
             label: 'Notifications',
           ),
-          // --- Profile Moved to Index 3 ---
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
             activeIcon: Icon(Icons.person),
             label: 'Profile',
@@ -316,8 +243,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
         currentIndex: _selectedIndex,
         selectedItemColor: colorScheme.primary,
-        unselectedItemColor: colorScheme.onSurfaceVariant.withOpacity(0.7),
-        onTap: _onItemTapped,
+        unselectedItemColor: colorScheme.onSurfaceVariant.withAlpha(
+          (255 * 0.7).round(),
+        ),
+        /* Fixed Opacity */ onTap: _onItemTapped,
         type: BottomNavigationBarType.fixed,
         backgroundColor: colorScheme.surfaceContainer,
         elevation: 3.0,
@@ -331,30 +260,18 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- Helper to get AppBar Title based on Index ---
+  // --- AppBar Title Helper ---
   String _getAppBarTitle(int index) {
-    switch (index) {
-      case 0:
-        return 'SOCIO.'; // Or 'Home'
-      case 1:
-        return 'My Events';
-      // --- UPDATED Indices ---
-      case 2:
-        return 'Notifications'; // Was Profile
-      case 3:
-        return 'Profile'; // Was Notifications
-      default:
-        return 'SOCIO.';
-    }
+    return ['SOCIO.', 'My Events', 'Notifications', 'Profile'][index];
   }
 
-  // --- Helper to build placeholder content for new tabs ---
+  // --- Placeholder Tab Helper ---
   Widget _buildPlaceholderTab(String title) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.construction, size: 50, color: Colors.grey[400]),
+          const Icon(Icons.construction, size: 50, color: Colors.grey),
           const SizedBox(height: 10),
           Text(
             '$title Tab',
@@ -371,359 +288,422 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- Extracted Content for the Home Tab (Index 0) ---
+  // --- Home Tab Content (Reads from Notifier) ---
   Widget _buildHomeTabContent(BuildContext context) {
+    // Use watch only for data needed directly in this build scope
+    final notifier = context.watch<HomeScreenNotifier>();
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    // Get user name and campus from the fetched profile state
-    // Provide defaults while loading or if data is missing
     final String userName =
-        (_userProfile?['full_name'] ?? 'Student').toString();
-    final String campusName = (_userProfile?['campus'] ?? '').toString();
+        (notifier.userProfile?['full_name'] ?? 'Student').toString();
 
-    // Display a simple loading indicator if the profile is still loading
-    if (_isLoadingProfile) {
+    if (notifier.profileLoadingStatus == LoadingStatus.loading ||
+        notifier.profileLoadingStatus == LoadingStatus.idle) {
       return const Center(child: CircularProgressIndicator());
     }
+    if (notifier.profileLoadingStatus == LoadingStatus.error) {
+      // Consider adding a retry button that calls notifier.refreshData()
+      return _buildErrorWidget("Could not load profile data.");
+    }
 
-    // Build the main content once profile is loaded (or loading finished)
+    // Main scrollable content
     return RefreshIndicator(
       onRefresh: () async {
-        // Refresh both events and profile on pull-to-refresh
-        await _loadInitialData();
+        await context.read<HomeScreenNotifier>().refreshData();
       },
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 16.0),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 24.0),
         children: [
-          // --- Welcome Header with Campus ---
+          // 1. Greeting
           Padding(
             padding: const EdgeInsets.only(
               left: 16.0,
               right: 16.0,
-              top: 16.0,
+              top: 20.0,
               bottom: 8.0,
             ),
+            child: Text(
+              "Hi, $userName!",
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+
+          // 2. Top Picks Carousel
+          _buildSectionHeader(
+            "Top Picks",
+            context: context,
+            showViewAll: false,
+          ),
+          _buildTopPicksCarousel(context), // Uses FutureBuilder inside
+          const SizedBox(height: 16),
+
+          // 3. Campus Filter Dropdown
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Row(
-              // Use Row to display name and campus
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic, // Aligns text nicely
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
-                Flexible(
-                  // Allow name to wrap if needed
-                  child: Text(
-                    "Hi, $userName!", // Display fetched name
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
+                Icon(
+                  Icons.location_on_outlined,
+                  size: 18,
+                  color: theme.colorScheme.secondary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButton<String>(
+                    value: notifier.selectedCampusFilter, // Read from notifier
+                    isExpanded: true,
+                    icon: const Icon(Icons.arrow_drop_down, size: 24),
+                    elevation: 8,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.secondary,
+                      fontWeight: FontWeight.w500,
                     ),
-                    overflow: TextOverflow.ellipsis, // Handle long names
+                    underline: Container(
+                      height: 1,
+                      color: theme.colorScheme.secondary.withAlpha(
+                        (255 * 0.5).round(),
+                      ) /* Fixed Opacity */,
+                    ),
+                    // Use context.read for actions in callbacks
+                    onChanged: (String? newValue) {
+                      context.read<HomeScreenNotifier>().setCampusFilter(
+                        newValue,
+                      );
+                    },
+                    items:
+                        notifier.campusOptions
+                            .map<DropdownMenuItem<String>>(
+                              (String value) => DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(
+                                  value,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                    hint: const Text("Select Campus"),
                   ),
                 ),
-                if (campusName.isNotEmpty) // Show campus tag only if available
-                  Row(
-                    mainAxisSize: MainAxisSize.min, // Keep Row compact
-                    children: [
-                      Icon(
-                        Icons.location_pin,
-                        size: 16,
-                        color: colorScheme.secondary,
-                      ), // Location icon
-                      const SizedBox(width: 4),
-                      Text(
-                        campusName,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.secondary,
-                        ), // Style for campus
-                      ),
-                    ],
-                  ),
               ],
             ),
           ),
-          // --- End Welcome Header ---
+          const SizedBox(height: 24),
 
-          // Search Bar Placeholder
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
-            ),
-            child: TextField(
-              readOnly: true,
-              decoration: InputDecoration(
-                hintText: 'Search events...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30.0),
-                  borderSide: BorderSide(
-                    color: colorScheme.outline.withOpacity(0.5),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30.0),
-                  borderSide: BorderSide(
-                    color: colorScheme.outline.withOpacity(0.5),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30.0),
-                  borderSide: BorderSide(color: colorScheme.primary),
-                ),
-                filled: true,
-                fillColor: colorScheme.surfaceContainerLowest,
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
-              ),
-              onTap:
-                  () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        "Search functionality not implemented (Demo).",
-                      ),
-                    ),
-                  ),
-            ),
+          // 4. Featured Events Carousel
+          _buildSectionHeader(
+            "Featured Events",
+            context: context,
+            onViewAllTap: () => _navigateToViewAll(context, "Featured"),
           ),
-          // Quick Filter Chips
-          _buildQuickFilters(), // Uses state variable _selectedQuickFilter
-          const SizedBox(height: 16),
-
-          // My Registrations Preview
-          if (_registeredPreviewEvents.isNotEmpty) ...[
-            // Uses state variable _registeredPreviewEvents
-            _buildMyRegistrationsPreview(),
-            const SizedBox(height: 24),
-          ],
-
-          // Featured Events
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: _buildSectionHeader(
-              "Featured events",
-              showViewAll: false,
-              context: context,
-            ),
-          ),
-          FutureBuilder<List<Event>>(
-            future: _featuredEventsFuture, // Uses state variable
-            builder:
-                (context, snapshot) =>
-                    _buildEventListFromSnapshot(snapshot, isHorizontal: true),
+          _buildStandardEventCarousel(
+            context: context,
+            future: notifier.featuredEventsFuture,
+            loadingStatus: notifier.featuredEventsLoadingStatus,
+            height: kStandardCarouselHeight,
+            itemWidth: kEventCardWidth,
+            errorMsg: "Could not load featured events.",
+            emptyMsg: "No featured events found.",
           ),
           const SizedBox(height: 24),
 
-          // Upcoming Fests
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: _buildSectionHeader(
-              "Upcoming Fests",
-              onViewAllTap:
-                  () => context.pushNamed(
-                    'publicDiscover',
-                    queryParameters: {'category': 'Fest'},
-                  ),
-              context: context,
-            ),
+          // 5. Upcoming Fests Carousel
+          _buildSectionHeader(
+            "Upcoming Fests",
+            context: context,
+            onViewAllTap: () => _navigateToViewAll(context, "Fests"),
           ),
-          FutureBuilder<List<Event>>(
-            future: _festEventsFuture, // Uses state variable
-            builder:
-                (context, snapshot) =>
-                    _buildEventListFromSnapshot(snapshot, isHorizontal: true),
+          _buildStandardEventCarousel(
+            context: context,
+            future: notifier.upcomingFestsFuture,
+            loadingStatus: notifier.upcomingFestsLoadingStatus,
+            height: kStandardCarouselHeight,
+            itemWidth: kEventCardWidth,
+            errorMsg: "Could not load upcoming fests.",
+            emptyMsg: "No upcoming fests found.",
           ),
           const SizedBox(height: 24),
 
-          // Categories
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: _buildSectionHeader(
-              "Browse by category",
-              onViewAllTap: () => context.pushNamed('publicDiscover'),
-              context: context,
-            ),
+          // 6. Categories Grid
+          _buildSectionHeader(
+            "Browse by Category",
+            context: context,
+            showViewAll: false,
           ),
-          _buildCategoryGrid(
-            _placeholderCategories,
-          ), // Uses constant _placeholderCategories
+          _buildCategoryGrid(_placeholderCategories), // Use static categories
           const SizedBox(height: 24),
 
-          // Upcoming Events
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: _buildSectionHeader(
-              "Upcoming events",
-              onViewAllTap: () => context.pushNamed('publicDiscover'),
-              context: context,
-            ),
+          // 7. University Centers and Clubs Carousel
+          _buildSectionHeader(
+            "University Centers & Clubs",
+            context: context,
+            onViewAllTap: () => _navigateToViewAll(context, "Clubs"),
           ),
-          FutureBuilder<List<Event>>(
-            future: _upcomingEventsFuture, // Uses state variable
-            builder:
-                (context, snapshot) => _buildGroupedVerticalEventList(snapshot),
+          _buildClubsCarouselPlaceholder(context), // Uses placeholder data
+          const SizedBox(height: 24),
+
+          // 8. Upcoming Events Section
+          _buildSectionHeader(
+            "Upcoming Events",
+            context: context,
+            showViewAll: false,
           ),
-          const SizedBox(height: 30), // Bottom padding
+          _buildUpcomingFilters(context), // Filter chips row
+          const SizedBox(height: 8),
+          _buildVerticalEventList(context), // Vertical list using FutureBuilder
+          const SizedBox(height: 30),
         ],
       ),
     );
   }
 
-  // --- All the helper methods (_buildQuickFilters, _buildMyRegistrationsPreview, etc.) should be moved here ---
-  // --- Make sure they use instance variables like _selectedQuickFilter, _registeredPreviewEvents, etc. ---
+  // --- Helper Widgets for Home Tab Content ---
 
-  // Builds the static quick filter chips row (Uses Theme Colors)
-  Widget _buildQuickFilters() {
-    return Padding(
-      padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 8.0),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children:
-              _quickFilters.map((filter) {
-                final bool isSelected = _selectedQuickFilter == filter;
-                final theme = Theme.of(context);
-                final colorScheme = theme.colorScheme;
+  // Helper for Top Picks Carousel (Reads Notifier state via context.watch)
+  Widget _buildTopPicksCarousel(BuildContext context) {
+    // Watch the specific parts of the notifier needed for this builder
+    final future = context.watch<HomeScreenNotifier>().topEventsFuture;
+    final status = context.watch<HomeScreenNotifier>().topEventsLoadingStatus;
 
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: FilterChip(
-                    label: Text(filter),
-                    selected: isSelected,
-                    onSelected: (bool selected) {
-                      setState(() {
-                        // Ensure setState is called here
-                        _selectedQuickFilter = selected ? filter : null;
-                      });
-                      log.i("Quick Filter tapped: $filter (Visual Only)");
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            "Filter '$filter' tapped (Visual Demo).",
+    return FutureBuilder<List<Event>>(
+      future: future,
+      builder: (context, snapshot) {
+        if (status == LoadingStatus.loading && !snapshot.hasData) {
+          return _buildCarouselLoadingPlaceholder(
+            height: kTopPicksCarouselHeight,
+          );
+        } else if (status == LoadingStatus.error) {
+          return _buildErrorWidget("Could not load top picks.");
+        } else {
+          final events = snapshot.data ?? [];
+          List<Widget> carouselItems = [
+            SizedBox(
+              height: kTopPicksCarouselHeight,
+              child: _buildMvpCardPlaceholder(
+                context,
+                cardHeight: kTopPicksCarouselHeight,
+              ),
+            ),
+          ];
+          carouselItems.addAll(
+            events
+                .map(
+                  (event) => _buildTopPickEventCard(
+                    context,
+                    event,
+                    kTopPicksCarouselHeight,
+                  ),
+                )
+                .toList(),
+          );
+          if (carouselItems.length <= 1) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: carouselItems.first,
+            );
+          }
+
+          // Use local state (_topPicksCurrentPage) for indicators
+          return Column(
+            children: [
+              CarouselSlider.builder(
+                carouselController:
+                    _topPicksCarouselController, // Use local controller
+                options: CarouselOptions(
+                  height: kTopPicksCarouselHeight,
+                  autoPlay: true,
+                  autoPlayInterval: const Duration(seconds: 5),
+                  viewportFraction: 0.9,
+                  enlargeCenterPage: true,
+                  enlargeFactor: 0.15,
+                  enableInfiniteScroll: true,
+                  onPageChanged: (index, reason) {
+                    setState(() {
+                      _topPicksCurrentPage = index;
+                    });
+                  }, // Update local state
+                ),
+                itemCount: carouselItems.length,
+                itemBuilder: (context, itemIndex, pageViewIndex) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: carouselItems[itemIndex],
+                  );
+                },
+              ),
+              // Indicators read local state
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children:
+                    carouselItems.asMap().entries.map((entry) {
+                      return GestureDetector(
+                        onTap:
+                            () => _topPicksCarouselController.animateToPage(
+                              entry.key,
+                            ),
+                        /* animateToPage is correct method */ child: Container(
+                          width: 8.0,
+                          height: 8.0,
+                          margin: const EdgeInsets.symmetric(
+                            vertical: 10.0,
+                            horizontal: 4.0,
                           ),
-                          duration: const Duration(seconds: 1),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: (Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? Colors.white
+                                    : Colors.black)
+                                .withAlpha(
+                                  (255 *
+                                          (_topPicksCurrentPage == entry.key
+                                              ? 0.9
+                                              : 0.4))
+                                      .round(),
+                                ) /* Fixed Opacity */,
+                          ),
                         ),
                       );
-                    },
-                    showCheckmark: false,
-                    selectedColor: colorScheme.primaryContainer.withOpacity(
-                      0.6,
-                    ),
-                    backgroundColor: colorScheme.surfaceContainerLowest,
-                    labelStyle: TextStyle(
-                      color:
-                          isSelected
-                              ? colorScheme.onPrimaryContainer
-                              : colorScheme.onSurfaceVariant,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
-                    side: BorderSide(
-                      color:
-                          isSelected
-                              ? colorScheme.primary.withOpacity(0.5)
-                              : colorScheme.outline.withOpacity(0.5),
-                    ),
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 0,
-                    ),
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    }).toList(),
+              ),
+            ],
+          );
+        }
+      },
+    );
+  }
+
+  // Helper for Standard Event Carousel (Reads Notifier state via context.watch)
+  Widget _buildStandardEventCarousel({
+    required BuildContext context,
+    required Future<List<Event>> future,
+    required LoadingStatus loadingStatus,
+    required double height,
+    required double itemWidth,
+    required String errorMsg,
+    required String emptyMsg,
+  }) {
+    // Use FutureBuilder directly listening to the passed future
+    return FutureBuilder<List<Event>>(
+      future: future,
+      builder: (context, snapshot) {
+        // Use loadingStatus from notifier for more accurate loading state
+        if (loadingStatus == LoadingStatus.loading && !snapshot.hasData) {
+          return _buildHorizontalLoadingPlaceholder(
+            cardWidth: itemWidth,
+            cardHeight: height,
+          );
+        } else if (loadingStatus == LoadingStatus.error) {
+          return _buildErrorWidget(errorMsg);
+        } else {
+          final events = snapshot.data ?? [];
+          if (events.isEmpty) {
+            return _buildEmptyWidget(emptyMsg);
+          }
+          return SizedBox(
+            height: height,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              itemCount: events.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final event = events[index];
+                return SizedBox(
+                  width: itemWidth,
+                  child: EventCard(
+                    event: event,
+                    isCompact: false,
+                    onTap: () => _navigateToEventDetail(context, event),
                   ),
                 );
-              }).toList(),
-        ),
+              },
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  // Builds card for Top Picks carousel
+  Widget _buildTopPickEventCard(
+    BuildContext context,
+    Event event,
+    double cardHeight,
+  ) {
+    // Ensure the EventCard is wrapped in SizedBox matching the carousel item height
+    return SizedBox(
+      height: cardHeight,
+      child: EventCard(
+        event: event,
+        isCompact: true,
+        onTap: () => _navigateToEventDetail(context, event),
       ),
     );
   }
 
-  // Builds the "My Registrations" preview section (Uses Theme Colors)
-  Widget _buildMyRegistrationsPreview() {
+  // Placeholder Widgets (MVP, Clubs, Shimmer etc.)
+  Widget _buildMvpCardPlaceholder(
+    BuildContext context, {
+    required double cardHeight,
+  }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+    return SizedBox(
+      width: kMvpCardWidth,
+      height: cardHeight,
       child: Card(
-        elevation: 1.5,
-        color: colorScheme.surfaceContainerLow,
+        clipBehavior: Clip.antiAlias,
+        elevation: 3.0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.0),
+          borderRadius: BorderRadius.circular(10.0),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
+        color: colorScheme.tertiaryContainer.withAlpha((255 * 0.8).round()),
+        /* Fixed Opacity */ child: Padding(
+          padding: const EdgeInsets.all(12.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Your Upcoming Events",
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed:
-                        () => _onItemTapped(1), // Navigate to My Events tab
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      visualDensity: VisualDensity.compact,
-                      foregroundColor: colorScheme.primary,
-                    ),
-                    child: const Text("View All"),
-                  ),
-                ],
+              Icon(
+                Icons.emoji_events_outlined,
+                size: 36,
+                color: colorScheme.onTertiaryContainer,
               ),
               const SizedBox(height: 8),
-              if (_registeredPreviewEvents.isEmpty)
-                Text(
-                  "Loading preview...",
-                  style: TextStyle(
-                    color: colorScheme.onSurfaceVariant.withOpacity(0.7),
-                  ),
+              Text(
+                "🏆 MVP Name",
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onTertiaryContainer,
                 ),
-              ..._registeredPreviewEvents.map(
-                (event) => ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    radius: 18,
-                    backgroundColor: colorScheme.secondaryContainer.withOpacity(
-                      0.5,
-                    ),
-                    child: Icon(
-                      _getIconForEvent(event) ?? Icons.event_note_outlined,
-                      size: 18,
-                      color: colorScheme.onSecondaryContainer,
-                    ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                "XX Events Attended",
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onTertiaryContainer.withAlpha(
+                    (255 * 0.8).round(),
                   ),
-                  title: Text(
-                    event.eventName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    DateFormat('MMM d, h:mm a').format(event.eventDate),
-                    style: TextStyle(color: colorScheme.onSurfaceVariant),
-                  ),
-                  onTap: () {
-                    if (event.id.isNotEmpty) {
-                      context.pushNamed(
-                        'eventDetail',
-                        pathParameters: {'eventId': event.id},
-                        extra: event,
-                      );
-                    } else {
-                      log.e("Cannot navigate preview: Event ID empty");
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text("Error: Invalid event ID."),
-                          backgroundColor: colorScheme.error,
-                        ),
-                      );
-                    }
-                  },
+                ) /* Fixed Opacity */,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () {},
+                child: Text(
+                  "View Profile",
+                  style: TextStyle(color: colorScheme.onTertiaryContainer),
                 ),
               ),
+              const SizedBox(height: 4),
             ],
           ),
         ),
@@ -731,47 +711,171 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Builds event lists from snapshot
-  Widget _buildEventListFromSnapshot(
-    AsyncSnapshot<List<Event>> snapshot, {
-    required bool isHorizontal,
-  }) {
-    if (snapshot.connectionState == ConnectionState.waiting) {
-      return isHorizontal
-          ? _buildHorizontalLoadingPlaceholder()
-          : _buildVerticalLoadingPlaceholder();
-    } else if (snapshot.hasError) {
-      log.e("Error building event list snapshot: ${snapshot.error}");
-      return _buildErrorWidget("Could not display events.");
-    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-      return _buildEmptyWidget(
-        isHorizontal ? "No events found." : "No upcoming events found.",
-      );
-    } else {
-      return isHorizontal
-          ? _buildHorizontalEventList(snapshot.data!, context)
-          : _buildVerticalEventListWithIcons(snapshot.data!);
-    }
-  }
-
-  // Builds horizontal SHIMMER placeholders
-  Widget _buildHorizontalLoadingPlaceholder() {
+  Widget _buildClubsCarouselPlaceholder(BuildContext context) {
+    List<Map<String, String>> placeholderClubs = List.generate(
+      5,
+      (index) => {
+        'title': 'Club/Center ${index + 1}',
+        'image': getRandomEventImageUrl(),
+        'desc': 'Short description of the club or center goes here...',
+      },
+    );
     return SizedBox(
-      height: 280,
-      child: ListView.builder(
+      height: kStandardCarouselHeight,
+      child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        itemCount: 3,
+        itemCount: placeholderClubs.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final club = placeholderClubs[index];
+          return _buildClubCardPlaceholder(
+            context,
+            club['image']!,
+            club['title']!,
+            club['desc']!,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildClubCardPlaceholder(
+    BuildContext context,
+    String imageUrl,
+    String title,
+    String description,
+  ) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: kClubCardWidth,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        elevation: 1.5,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10.0),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CachedNetworkImage(
+              imageUrl: imageUrl,
+              height: 100,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              placeholder:
+                  (context, url) => Container(
+                    height: 100,
+                    color: Colors.grey[300],
+                    child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+              errorWidget:
+                  (context, url, error) => Container(
+                    height: 100,
+                    color: Colors.grey[300],
+                    child: const Icon(
+                      Icons.business_outlined,
+                      color: Colors.grey,
+                    ),
+                  ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          description,
+                          style: theme.textTheme.bodySmall,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                    TextButton.icon(
+                      icon: Icon(
+                        Icons.link,
+                        size: 14,
+                        color: theme.colorScheme.primary,
+                      ),
+                      label: Text(
+                        "Learn More",
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      onPressed: () {},
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Loading Placeholders
+  Widget _buildCarouselLoadingPlaceholder({required double height}) {
+    return Container(
+      height: height,
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      alignment: Alignment.center,
+      child: _buildPlaceholderCard(
+        context,
+        width: MediaQuery.of(context).size.width * 0.85,
+        height: height * 0.9,
+      ),
+    );
+  }
+
+  Widget _buildHorizontalLoadingPlaceholder({
+    required double cardWidth,
+    required double cardHeight,
+  }) {
+    return SizedBox(
+      height: cardHeight,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        itemCount:
+            (MediaQuery.of(context).size.width / (cardWidth + 12)).ceil(),
         itemBuilder:
             (context, index) => Padding(
               padding: const EdgeInsets.only(right: 12.0),
-              child: _buildPlaceholderEventCard(context),
+              child: _buildPlaceholderCard(
+                context,
+                width: cardWidth,
+                height: cardHeight,
+              ),
             ),
       ),
     );
   }
 
-  // Builds vertical SHIMMER placeholders
   Widget _buildVerticalLoadingPlaceholder() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -780,15 +884,18 @@ class _HomeScreenState extends State<HomeScreen> {
           3,
           (index) => Padding(
             padding: const EdgeInsets.only(bottom: 16.0),
-            child: _buildPlaceholderEventCard(context),
+            child: _buildPlaceholderCard(context, height: 200),
           ),
         ),
       ),
     );
   }
 
-  // Defines a single SHIMMER placeholder card (Uses Theme Colors) - CORRECTED
-  Widget _buildPlaceholderEventCard(BuildContext context) {
+  Widget _buildPlaceholderCard(
+    BuildContext context, {
+    double width = 250,
+    double height = 280,
+  }) {
     final theme = Theme.of(context);
     final baseColor =
         (theme.brightness == Brightness.dark
@@ -804,64 +911,58 @@ class _HomeScreenState extends State<HomeScreen> {
         theme.brightness == Brightness.dark
             ? ((Colors.grey[750]) ?? Colors.grey[800]!)
             : Colors.white;
-
     return Shimmer.fromColors(
       baseColor: baseColor,
       highlightColor: highlightColor,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
+      period: const Duration(milliseconds: 1200),
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: containerColor,
           borderRadius: BorderRadius.circular(10.0),
         ),
-        color: theme.cardColor,
-        child: SizedBox(
-          width: 250,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                height: 120,
-                width: double.infinity,
-                color: containerColor,
-              ),
-              Padding(
-                padding: const EdgeInsets.all(10.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      height: 10,
-                      width: 80,
-                      color: containerColor,
-                      margin: const EdgeInsets.only(bottom: 8),
-                    ),
-                    Container(
-                      height: 12,
-                      width: 200,
-                      color: containerColor,
-                      margin: const EdgeInsets.only(bottom: 6),
-                    ),
-                    Container(
-                      height: 10,
-                      width: 150,
-                      color: containerColor,
-                      margin: const EdgeInsets.only(bottom: 4),
-                    ),
-                    Container(height: 10, width: 180, color: containerColor),
-                  ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: height * 0.45,
+              decoration: BoxDecoration(
+                color: baseColor,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(10.0),
                 ),
               ),
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(10.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 12,
+                    width: width * 0.5,
+                    color: baseColor,
+                    margin: const EdgeInsets.only(bottom: 8),
+                  ),
+                  Container(
+                    height: 10,
+                    width: width * 0.8,
+                    color: baseColor,
+                    margin: const EdgeInsets.only(bottom: 6),
+                  ),
+                  Container(height: 10, width: width * 0.6, color: baseColor),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // Widget for error state (Uses Theme Colors)
+  // Error/Empty Widgets
   Widget _buildErrorWidget(String message) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       height: 150,
       padding: const EdgeInsets.all(16.0),
@@ -869,11 +970,15 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, color: colorScheme.error, size: 30),
+          Icon(
+            Icons.error_outline,
+            color: Theme.of(context).colorScheme.error,
+            size: 30,
+          ),
           const SizedBox(height: 8),
           Text(
             message,
-            style: TextStyle(color: colorScheme.error),
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
             textAlign: TextAlign.center,
           ),
         ],
@@ -881,9 +986,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Widget for empty state (Uses Theme Colors)
   Widget _buildEmptyWidget(String message) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       height: 150,
       padding: const EdgeInsets.all(16.0),
@@ -893,14 +996,18 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Icon(
             Icons.event_busy_outlined,
-            color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurfaceVariant.withAlpha(150),
             size: 30,
           ),
           const SizedBox(height: 8),
           Text(
             message,
             style: TextStyle(
-              color: colorScheme.onSurfaceVariant.withOpacity(0.8),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurfaceVariant.withAlpha(200),
             ),
             textAlign: TextAlign.center,
           ),
@@ -909,33 +1016,37 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Builds the section header (Uses Theme Colors)
+  // Section Header Helper
   Widget _buildSectionHeader(
     String title, {
     bool showViewAll = true,
     VoidCallback? onViewAllTap,
     required BuildContext context,
   }) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     return Padding(
-      padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+      padding: const EdgeInsets.only(
+        left: 16.0,
+        right: 16.0,
+        top: 16.0,
+        bottom: 8.0,
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(
             title,
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           if (showViewAll && onViewAllTap != null)
             TextButton(
               onPressed: onViewAllTap,
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                foregroundColor: colorScheme.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 0),
+                visualDensity: VisualDensity.compact,
+                foregroundColor: Theme.of(context).colorScheme.primary,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -945,7 +1056,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Icon(
                     Icons.arrow_forward_ios,
                     size: 14,
-                    color: colorScheme.primary,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ],
               ),
@@ -955,53 +1066,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Builds the horizontal event list (Uses Theme Colors)
-  Widget _buildHorizontalEventList(List<Event> events, BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      height: 280,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        itemCount: events.length,
-        itemBuilder: (context, index) {
-          final currentEvent = events[index];
-          final iconData = _getIconForEvent(currentEvent);
-          return Padding(
-            padding: EdgeInsets.only(
-              right: index == events.length - 1 ? 0 : 12.0,
-            ),
-            child: EventCard(
-              event: currentEvent,
-              leadingIconData: iconData,
-              leadingIconColor: colorScheme.secondary,
-              onTap: () {
-                if (currentEvent.id.isNotEmpty) {
-                  context.pushNamed(
-                    'eventDetail',
-                    pathParameters: {'eventId': currentEvent.id},
-                    extra: currentEvent,
-                  );
-                } else {
-                  log.e(
-                    "Nav Error: Event ID empty for ${currentEvent.eventName}",
-                  );
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text("Error: Invalid event ID."),
-                      backgroundColor: colorScheme.error,
-                    ),
-                  );
-                }
-              },
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // Builds the category grid (Uses Theme Colors)
+  // Category Grid Helper
   Widget _buildCategoryGrid(List<Category> categories) {
     return GridView.builder(
       shrinkWrap: true,
@@ -1011,7 +1076,7 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisCount: 3,
         crossAxisSpacing: 12.0,
         mainAxisSpacing: 12.0,
-        childAspectRatio: 1.0,
+        childAspectRatio: 1.05,
       ),
       itemCount: categories.length,
       itemBuilder: (context, index) {
@@ -1024,174 +1089,120 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Builds vertical event list with icons (Non-Grouped - Uses Theme Colors)
-  Widget _buildVerticalEventListWithIcons(List<Event> events) {
-    final colorScheme = Theme.of(context).colorScheme;
+  // --- Upcoming Event Filter Chips ---
+  Widget _buildUpcomingFilters(BuildContext context) {
+    final notifier = context.watch<HomeScreenNotifier>();
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Column(
-        children:
-            events.map((currentEvent) {
-              final iconData = _getIconForEvent(currentEvent);
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: EventCard(
-                  event: currentEvent,
-                  leadingIconData: iconData,
-                  leadingIconColor: colorScheme.secondary,
-                  onTap: () {
-                    if (currentEvent.id.isNotEmpty) {
-                      context.pushNamed(
-                        'eventDetail',
-                        pathParameters: {'eventId': currentEvent.id},
-                        extra: currentEvent,
+      padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 8.0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children:
+              notifier.upcomingFilters.map((filter) {
+                final bool isSelected =
+                    notifier.selectedUpcomingFilter == filter;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: FilterChip(
+                    label: Text(filter),
+                    selected: isSelected,
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 10),
+                    onSelected: (bool selected) {
+                      final newFilter = selected ? filter : "All";
+                      context.read<HomeScreenNotifier>().setUpcomingFilter(
+                        newFilter,
                       );
-                    } else {
-                      log.e(
-                        "Nav Error: Event ID empty for ${currentEvent.eventName}",
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text("Error: Invalid event ID."),
-                          backgroundColor: colorScheme.error,
-                        ),
-                      );
-                    }
-                  },
-                ),
-              );
-            }).toList(),
+                    },
+                    showCheckmark: false,
+                    selectedColor: colorScheme.secondaryContainer.withAlpha(
+                      (255 * 0.7).round(),
+                    ),
+                    backgroundColor: colorScheme.surfaceContainerLowest,
+                    labelStyle: TextStyle(
+                      color:
+                          isSelected
+                              ? colorScheme.onSecondaryContainer
+                              : colorScheme.onSurfaceVariant,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                    side: BorderSide(
+                      color:
+                          isSelected
+                              ? colorScheme.secondary.withAlpha(
+                                (255 * 0.5).round(),
+                              )
+                              : colorScheme.outline.withAlpha(
+                                (255 * 0.5).round(),
+                              ),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                );
+              }).toList(),
+        ),
       ),
     );
   }
 
-  // Builds grouped vertical event list (Uses Theme Colors)
-  Widget _buildGroupedVerticalEventList(AsyncSnapshot<List<Event>> snapshot) {
-    if (snapshot.connectionState == ConnectionState.waiting) {
-      return _buildVerticalLoadingPlaceholder();
-    }
-    if (snapshot.hasError) {
-      log.e("Error building grouped event list: ${snapshot.error}");
-      return _buildErrorWidget("Could not load upcoming events.");
-    }
-    if (!snapshot.hasData || snapshot.data!.isEmpty) {
-      return _buildEmptyWidget("No upcoming events found.");
-    }
+  // --- Vertical Event List ---
+  Widget _buildVerticalEventList(BuildContext context) {
+    final notifier = context.watch<HomeScreenNotifier>();
+    final future = notifier.allUpcomingEventsFuture;
+    final status = notifier.allUpcomingEventsLoadingStatus;
 
-    final events = snapshot.data!;
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    events.sort((a, b) => a.eventDate.compareTo(b.eventDate));
-
-    final Map<String, List<Event>> groupedEvents = {};
-    for (var event in events) {
-      final group = _getDateGroup(event.eventDate);
-      if (groupedEvents[group] == null) groupedEvents[group] = [];
-      groupedEvents[group]!.add(event);
-    }
-
-    final groupOrder = ["Today", "Tomorrow", "This Week", "Upcoming", "Past"];
-    List<Widget> listItems = [];
-    if (groupedEvents.isEmpty) {
-      return _buildEmptyWidget("No upcoming events found.");
-    }
-
-    for (String groupKey in groupOrder) {
-      final eventsInGroup = groupedEvents[groupKey];
-      if (eventsInGroup != null && eventsInGroup.isNotEmpty) {
-        listItems.add(
-          Padding(
-            padding: const EdgeInsets.only(
-              top: 16.0,
-              bottom: 8.0,
-              left: 16.0,
-              right: 16.0,
-            ),
-            child: Text(
-              groupKey.startsWith("This Week") ? "This Week" : groupKey,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        );
-        for (var event in eventsInGroup) {
-          final iconData = _getIconForEvent(event);
-          listItems.add(
-            Padding(
-              padding: const EdgeInsets.only(
-                bottom: 16.0,
-                left: 16.0,
-                right: 16.0,
-              ),
-              child: EventCard(
-                event: event,
+    return FutureBuilder<List<Event>>(
+      future: future,
+      builder: (context, snapshot) {
+        if (status == LoadingStatus.loading && !snapshot.hasData) {
+          return _buildVerticalLoadingPlaceholder();
+        } else if (status == LoadingStatus.error) {
+          return _buildErrorWidget("Could not display upcoming events.");
+        } else {
+          final events = snapshot.data ?? [];
+          if (events.isEmpty) {
+            return _buildEmptyWidget(
+              "No upcoming events found matching filters.",
+            );
+          }
+          return ListView.separated(
+            physics: const NeverScrollableScrollPhysics(),
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            itemCount: events.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              final currentEvent = events[index];
+              // Access static _eventIcons map directly using class name
+              final iconData = _HomeScreenState._getIconForEvent(currentEvent);
+              return EventCard(
+                event: currentEvent,
                 leadingIconData: iconData,
-                leadingIconColor: colorScheme.secondary,
-                onTap: () {
-                  if (event.id.isNotEmpty) {
-                    context.pushNamed(
-                      'eventDetail',
-                      pathParameters: {'eventId': event.id},
-                      extra: event,
-                    );
-                  } else {
-                    log.e(
-                      "Cannot navigate: Event ID empty for ${event.eventName}",
-                    );
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text("Error: Invalid event ID."),
-                        backgroundColor: colorScheme.error,
-                      ),
-                    );
-                  }
-                },
-              ),
-            ),
+                leadingIconColor: Theme.of(context).colorScheme.secondary,
+                isCompact: false,
+                onTap: () => _navigateToEventDetail(context, currentEvent),
+              );
+            },
           );
         }
-      }
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: listItems,
+      },
     );
   }
 
-  // --- Helper methods for grouping, icons etc. (Keep as is) ---
-  String _getDateGroup(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final tomorrow = today.add(const Duration(days: 1));
-    final eventDateOnly = DateTime(date.year, date.month, date.day);
-
-    if (eventDateOnly.isAtSameMomentAs(today)) return 'Today';
-    if (eventDateOnly.isAtSameMomentAs(tomorrow)) return 'Tomorrow';
-    if (eventDateOnly.isAfter(tomorrow) &&
-        eventDateOnly.isBefore(today.add(const Duration(days: 7)))) {
-      return 'This Week (${DateFormat('EEEE').format(eventDateOnly)})';
-    }
-    if (eventDateOnly.isAfter(today)) {
-      return 'Upcoming (${DateFormat('MMM d').format(eventDateOnly)})';
-    }
-    return 'Past (${DateFormat('MMM d').format(eventDateOnly)})';
-  }
-
-  IconData? _getIconForEvent(Event event) {
+  // Icon Helper - Make static or keep as instance method if _HomeScreenState is stateful
+  static IconData? _getIconForEvent(Event event) {
+    // Made static for simplicity now
     if (event.tags == null) return Icons.event_note_outlined;
     for (String tag in event.tags!) {
       final lowerTag = tag.toLowerCase();
-      if (_eventIcons.containsKey(lowerTag)) return _eventIcons[lowerTag];
+      // Access static map using class name
+      if (_HomeScreenState._eventIcons.containsKey(lowerTag)) {
+        return _HomeScreenState._eventIcons[lowerTag];
+      }
     }
     return Icons.event_note_outlined;
-  }
-
-  void _handleCategoryTap(Category category) {
-    log.i("Category tapped: ${category.title}");
-    context.pushNamed(
-      'publicDiscover',
-      queryParameters: {'category': category.title},
-    );
   }
 } // End of _HomeScreenState

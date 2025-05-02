@@ -108,7 +108,7 @@ class _NotificationsTabFrontendState extends State<NotificationsTabFrontend> {
     } else if (difference > 1 && difference <= 10) {
       String dayFormat = (difference < 7) ? 'EEEE' : 'MMM d';
       // Corrected logic for 'In X days' phrasing might be complex, using 'On X' is clearer
-      return 'On ${DateFormat(dayFormat).format(eventDate)} (${difference} ${difference == 1 ? 'day' : 'days'} left)';
+      return 'On ${DateFormat(dayFormat).format(eventDate)} ($difference ${difference == 1 ? 'day' : 'days'} left)';
     } else {
       // Fallback for events more than 10 days away (shouldn't happen with current filter)
       return DateFormat('MMM d, yyyy').format(eventDate);

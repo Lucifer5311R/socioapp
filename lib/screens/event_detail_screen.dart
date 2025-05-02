@@ -1,51 +1,66 @@
 // lib/screens/event_detail_screen.dart
-// REFINED V3 - Distributed Content Across Tabs (Option 2)
+// REFINED V4 - Integrated with MyEventsNotifier for UI Registration
 
-import 'package:flutter/gestures.dart';
+import 'package:cached_network_image/cached_network_image.dart'; // Import CachedNetworkImage
+import 'package:flutter/gestures.dart'; // Keep for RichText links
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
+import 'package:provider/provider.dart'; // <-- Import Provider
 
-import '../models/event.dart'; // Ensure Event model is imported
+import '../models/event.dart';
+import '../notifiers/my_events_notifier.dart'; // <-- Import Notifier
 
 class EventDetailScreen extends StatelessWidget {
-  final Event event; // Receive the Event object
+  final Event event;
   final Logger log = Logger();
 
   EventDetailScreen({required this.event, super.key});
 
-  // --- Placeholder Actions ---
-  void _handleRegistration(BuildContext context) {
-    log.i("Simulating registration for event: ${event.eventName}");
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Registered for "${event.eventName}"! (Demo)'),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+  // --- Modified registration handler ---
+  void _handleRegistration(BuildContext context, MyEventsNotifier notifier) {
+    // Only allow registration if not already registered (UI check)
+    if (!notifier.isRegistered(event)) {
+      log.i("UI ACTION: Registering event: ${event.eventName}");
+      notifier.registerEvent(event); // Add event to the notifier's list
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Added "${event.eventName}" to My Events! (UI Only)'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    }
   }
 
+  // Placeholder Actions (Keep others as needed)
   void _navigateToProfile(BuildContext context) {
     log.i("Navigate to Profile/Dashboard Tapped (Placeholder)");
-    // Example: context.goNamed('studentDashboard'); // Navigate if needed
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text("Profile icon tapped (Demo)")));
+    // Example if using GoRouter: context.goNamed('profile');
   }
 
   Future<void> _launchUrl(BuildContext context, String urlString) async {
-    // Placeholder - implement using url_launcher package if needed
     log.i("Attempting to launch URL (disabled): $urlString");
+    // Add url_launcher package and uncomment to enable
+    // final Uri uri = Uri.parse(urlString);
+    // if (await canLaunchUrl(uri)) {
+    //   await launchUrl(uri);
+    // } else {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     SnackBar(content: Text("Could not launch URL: $urlString")),
+    //   );
+    // }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("Link tapped (launch disabled): $urlString")),
     );
   }
 
-  // --- Helper Widget Builders ---
-
-  // Builds the colored tags like "Featured", "Academic"
+  // --- Widget Builders ---
   Widget _buildTagChip(String text, Color backgroundColor, Color textColor) {
     return Chip(
       label: Text(text),
@@ -62,15 +77,20 @@ class EventDetailScreen extends StatelessWidget {
     );
   }
 
-  // Builds Icon + Text row for the core event details
   Widget _buildDetailRow(IconData icon, String text, BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5.0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment:
+            CrossAxisAlignment
+                .start, // Use start for potentially multi-line text
         children: [
-          Icon(icon, size: 18, color: Colors.grey[600]),
+          Icon(
+            icon,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -86,12 +106,12 @@ class EventDetailScreen extends StatelessWidget {
     );
   }
 
-  // Builds a content section with title - USED WITHIN EACH TAB NOW
+  // Builds a content section with title, handling potential links and bullet points
   Widget _buildInfoSection(
     BuildContext context,
     String title,
     String content, {
-    bool parseContent = true,
+    bool parseContent = true, // Set to false to display raw text
   }) {
     final theme = Theme.of(context);
 
@@ -100,7 +120,7 @@ class EventDetailScreen extends StatelessWidget {
       if (!parseContent) {
         return [
           Text(
-            text,
+            text.isEmpty ? "Information not available." : text,
             style: theme.textTheme.bodyLarge?.copyWith(
               height: 1.5,
               color: theme.colorScheme.onSurfaceVariant,
@@ -114,6 +134,7 @@ class EventDetailScreen extends StatelessWidget {
         caseSensitive: false,
       );
       final List<Widget> widgets = [];
+
       if (text.trim().isEmpty) {
         widgets.add(
           Padding(
@@ -128,17 +149,22 @@ class EventDetailScreen extends StatelessWidget {
         );
         return widgets;
       }
+
       final lines = text.split('\n');
       for (final line in lines) {
         if (line.trim().isEmpty) {
           widgets.add(const SizedBox(height: 8.0));
           continue;
         }
+
         List<InlineSpan> spans = [];
         int currentPosition = 0;
-        bool isBullet = line.trim().startsWith(RegExp(r'[•*-]'));
+        // Basic bullet point check (adjust regex if needed for more types)
+        bool isBullet = line.trim().startsWith(RegExp(r'[•*-]\s*'));
         String displayLine =
-            isBullet ? line.trim().substring(1).trim() : line.trim();
+            isBullet
+                ? line.trim().replaceFirst(RegExp(r'[•*-]\s*'), '')
+                : line.trim();
 
         for (final match in urlRegExp.allMatches(displayLine)) {
           if (match.start > currentPosition) {
@@ -148,6 +174,7 @@ class EventDetailScreen extends StatelessWidget {
               ),
             );
           }
+
           spans.add(
             TextSpan(
               text: match.group(0),
@@ -181,7 +208,10 @@ class EventDetailScreen extends StatelessWidget {
               children: [
                 if (isBullet)
                   Padding(
-                    padding: const EdgeInsets.only(right: 8.0, top: 7),
+                    padding: const EdgeInsets.only(
+                      right: 8.0,
+                      top: 7,
+                    ), // Adjust top padding for alignment
                     child: Icon(
                       Icons.circle,
                       size: 6,
@@ -218,7 +248,7 @@ class EventDetailScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        ...buildContentWidgets(content),
+        ...buildContentWidgets(content), // Spread the list of widgets
       ],
     );
   }
@@ -230,20 +260,34 @@ class EventDetailScreen extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
+        // Add spacing between widgets passed in the list
+        children: List.generate(children.length * 2 - 1, (index) {
+          if (index.isEven) {
+            return children[index ~/ 2];
+          } else {
+            // Add spacing between sections in the tab
+            return const SizedBox(height: 24.0);
+          }
+        }),
       ),
     );
   }
+  // --- End Widget Builders ---
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    // --- Get the Notifier using context.watch ---
+    // context.watch makes the widget rebuild when the notifier changes (e.g., when isRegistered changes)
+    final myEventsNotifier = context.watch<MyEventsNotifier>();
+    // --- Check registration status ---
+    final bool alreadyRegistered = myEventsNotifier.isRegistered(event);
 
     // --- Data Formatting & Calculation ---
     final String formattedDate = DateFormat(
-      'MMM d, yyyy',
-    ).format(event.eventDate);
+      'MMM d, EEEE',
+    ).format(event.eventDate); // Example format
     final String formattedTime = DateFormat('h:mm a').format(event.eventDate);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -262,26 +306,19 @@ class EventDetailScreen extends StatelessWidget {
             : '₹${event.registrationFee?.toStringAsFixed(0)}';
     final String registrationCount =
         '${event.currentRegistrations ?? 0}/${event.maxRegistrations ?? 'NA'} registrations';
-    bool isFeatured = event.tags?.contains('Featured') ?? false;
-    bool isAcademic = event.tags?.contains('Academic') ?? false;
-    // Determine primary tag logic
+    // Determine primary tag (optional enhanced logic)
     String? primaryTagText;
     Color? primaryTagBgColor;
     Color? primaryTagTextColor;
-    if (event.registrationFee != null && event.registrationFee! > 0) {
-      primaryTagText = "Paid";
-      primaryTagBgColor = Colors.blue[50];
-      primaryTagTextColor = Colors.blue[800];
-    } else if (event.tags?.contains("Free") ?? false) {
+    if (event.tags?.contains("Free") ?? false) {
       primaryTagText = "Free";
       primaryTagBgColor = Colors.green[50];
       primaryTagTextColor = Colors.green[800];
-    } else if (isFeatured) {
-      primaryTagText = "Featured";
-      primaryTagBgColor = Colors.yellow[600];
-      primaryTagTextColor = Colors.black;
-    }
-    // Add else if for 'Academic' or other primary tags if needed
+    } else if (event.registrationFee != null && event.registrationFee! > 0) {
+      primaryTagText = "Paid";
+      primaryTagBgColor = Colors.blue[50];
+      primaryTagTextColor = Colors.blue[800];
+    } // Add more logic (Featured, Academic etc.) if needed
 
     // --- Define Tabs ---
     final List<Tab> tabs = <Tab>[
@@ -296,7 +333,7 @@ class EventDetailScreen extends StatelessWidget {
     return DefaultTabController(
       length: tabs.length,
       child: Scaffold(
-        backgroundColor: colorScheme.surface,
+        backgroundColor: colorScheme.surface, // Use theme surface color
         body: CustomScrollView(
           slivers: <Widget>[
             // --- AppBar ---
@@ -311,8 +348,8 @@ class EventDetailScreen extends StatelessWidget {
               actions: [
                 IconButton(
                   icon: Icon(
-                    Icons.account_circle,
-                    color: Colors.blue[800],
+                    Icons.account_circle_outlined, // Use outlined version
+                    color: colorScheme.primary,
                     size: 28,
                   ),
                   tooltip: 'Profile / Dashboard',
@@ -322,34 +359,30 @@ class EventDetailScreen extends StatelessWidget {
               ],
               backgroundColor: colorScheme.surface,
               foregroundColor: colorScheme.onSurface,
-              elevation: 1.0,
-              pinned: true,
-              floating: true,
-              snap: true,
+              elevation: 1.0, // Subtle elevation
+              pinned: true, // Keep AppBar visible
+              floating: true, // Allow AppBar to reappear quickly
+              snap: true, // Snap AppBar into view
             ),
 
             // --- Banner Image ---
             SliverToBoxAdapter(
               child: Container(
                 height: 200,
-                color: Colors.grey[300],
+                color: colorScheme.surfaceContainerLowest, // Placeholder color
                 child:
                     (event.bannerUrl != null && event.bannerUrl!.isNotEmpty)
-                        ? Image.network(
-                          event.bannerUrl!,
+                        ? CachedNetworkImage(
+                          imageUrl: event.bannerUrl!,
                           fit: BoxFit.cover,
-                          loadingBuilder:
-                              (context, child, progress) =>
-                                  progress == null
-                                      ? child
-                                      : const Center(
-                                        child: CircularProgressIndicator(),
-                                      ),
-                          errorBuilder: (context, error, stackTrace) {
+                          placeholder:
+                              (context, url) => const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                          errorWidget: (context, url, error) {
                             log.w(
                               "Failed to load banner: ${event.bannerUrl}",
                               error: error,
-                              stackTrace: stackTrace,
                             );
                             return const Center(
                               child: Icon(
@@ -381,26 +414,22 @@ class EventDetailScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Tags Wrap
                           Wrap(
                             spacing: 8,
                             runSpacing: 4,
                             children: [
-                              // Display determined primary tag OR specific tags like Academic
                               if (primaryTagText != null)
                                 _buildTagChip(
                                   primaryTagText,
                                   primaryTagBgColor!,
                                   primaryTagTextColor!,
                                 ),
-                              if (isAcademic && primaryTagText != 'Academic')
-                                _buildTagChip(
-                                  'Academic',
-                                  Colors.blue[50]!,
-                                  Colors.blue[800]!,
-                                ), // Show Academic if not primary
+                              // Add logic to show other relevant tags if needed
                             ],
                           ),
                           const SizedBox(height: 12),
+                          // Event Name
                           Text(
                             event.eventName,
                             style: theme.textTheme.headlineMedium?.copyWith(
@@ -409,18 +438,20 @@ class EventDetailScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 4),
+                          // Department (if available)
                           if (event.department != null &&
                               event.department!.isNotEmpty)
                             Text(
                               "Dept. of ${event.department!}",
                               style: theme.textTheme.bodyLarge?.copyWith(
-                                color: Colors.grey[700],
+                                color: colorScheme.onSurfaceVariant,
                               ),
                             ),
                         ],
                       ),
                     ),
                     const SizedBox(width: 16),
+                    // Days Left Indicator (if applicable)
                     if (isEventUpcomingOrToday)
                       Container(
                         width: 65,
@@ -473,27 +504,32 @@ class EventDetailScreen extends StatelessWidget {
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   indicatorPadding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  overlayColor: WidgetStatePropertyAll(
+                    Colors.blue[800]?.withOpacity(0.1),
+                  ), // Feedback color
                 ),
               ),
-              pinned: true,
+              pinned: true, // Keep TabBar visible while scrolling content
             ),
 
-            // --- Tab Content Area (Distributed) ---
+            // --- Tab Content Area ---
             SliverFillRemaining(
-              // Ensure TabBarView itself doesn't scroll if content fits
-              // hasScrollBody: false, // Use if content per tab is short
+              // Use SliverFillRemaining for TabBarView in CustomScrollView
+              // hasScrollBody: false, // Set to true if tab content itself needs to scroll independently
               child: TabBarView(
-                physics: const BouncingScrollPhysics(), // Allow swipe physics
+                physics:
+                    const BouncingScrollPhysics(), // Allow nice swipe physics
                 children: [
                   // == Tab 1: Details ==
                   _buildTabView(context, [
+                    // Using helpers to build sections
                     Text(
                       "Event details",
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 12), // Add space before details
                     _buildDetailRow(
                       Icons.calendar_today_outlined,
                       formattedDate,
@@ -519,23 +555,13 @@ class EventDetailScreen extends StatelessWidget {
                       registrationCount,
                       context,
                     ),
-                    const SizedBox(height: 24),
-                    // Description Section
-                    Text(
+                    // Add Description Section explicitly if not using _buildInfoSection
+                    _buildInfoSection(
+                      context,
                       "Description",
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
                       event.description ?? "No description provided.",
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        height: 1.5,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
+                      parseContent: true,
+                    ), // Enable parsing for description
                   ]),
 
                   // == Tab 2: Rules ==
@@ -544,6 +570,7 @@ class EventDetailScreen extends StatelessWidget {
                       context,
                       "Rules and guidelines",
                       event.rules ?? "",
+                      parseContent: true,
                     ),
                   ]),
 
@@ -553,6 +580,7 @@ class EventDetailScreen extends StatelessWidget {
                       context,
                       "Schedule",
                       event.schedule ?? "",
+                      parseContent: true,
                     ),
                   ]),
 
@@ -562,6 +590,7 @@ class EventDetailScreen extends StatelessWidget {
                       context,
                       "Prizes & Opportunities",
                       event.prizes ?? "",
+                      parseContent: true,
                     ),
                   ]),
 
@@ -571,22 +600,31 @@ class EventDetailScreen extends StatelessWidget {
                       context,
                       "Organizers",
                       event.organizerInfo ?? "",
-                    ),
+                      parseContent: true,
+                    ), // Parse potential contact info/links
                   ]),
                 ],
               ),
             ),
           ],
         ),
-        // --- Bottom Navigation Bar ---
+        // --- UPDATE Bottom Navigation Bar ---
         bottomNavigationBar: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0),
-            child: ElevatedButton(
+            child: ElevatedButton.icon(
+              // Use ElevatedButton.icon
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue[800],
-                foregroundColor: colorScheme.onPrimary,
-                minimumSize: const Size(double.infinity, 48),
+                // --- Change appearance based on registration status ---
+                backgroundColor:
+                    alreadyRegistered
+                        ? Colors.grey[600]
+                        : Colors.blue[800], // Use theme primary or grey
+                foregroundColor: colorScheme.onPrimary, // Text color on button
+                minimumSize: const Size(
+                  double.infinity,
+                  48,
+                ), // Ensure button is wide
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 textStyle: const TextStyle(
                   fontSize: 16,
@@ -595,9 +633,28 @@ class EventDetailScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
+                disabledBackgroundColor:
+                    Colors.grey[400], // Background when disabled
+                disabledForegroundColor:
+                    Colors.white70, // Text color when disabled
               ),
-              onPressed: () => _handleRegistration(context),
-              child: const Text('Register'),
+              // --- Disable button or change action based on status ---
+              onPressed:
+                  alreadyRegistered
+                      ? null // Disable button if already registered
+                      : () => _handleRegistration(
+                        context,
+                        myEventsNotifier,
+                      ), // Call register method
+              // --- Change Icon based on status ---
+              icon: Icon(
+                alreadyRegistered
+                    ? Icons.check_circle_outline
+                    : Icons.app_registration,
+                size: 20,
+              ), // Adjusted icon size
+              // --- Change Text based on status ---
+              label: Text(alreadyRegistered ? 'Registered' : 'Register'),
             ),
           ),
         ),
@@ -620,8 +677,12 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
+    // Add a background color to ensure tabs stand out when pinned
     return Container(
-      color: Theme.of(context).colorScheme.surface,
+      color:
+          Theme.of(
+            context,
+          ).colorScheme.surface, // Use surface color for background
       child: _tabBar,
     );
   }
