@@ -177,7 +177,7 @@ class EventCard extends StatelessWidget {
                     ),
 
                     // *** Increased spacing before details ***
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 6),
 
                     // -- Date & Time -- (Separate Line)
                     _buildIconText(
@@ -189,10 +189,48 @@ class EventCard extends StatelessWidget {
                     const SizedBox(height: 3),
 
                     // -- Location -- (Separate Line)
-                    _buildIconText(
-                      Icons.location_on_outlined,
-                      location,
-                      context,
+                    // -- Location & NEW Team Indicator Row --
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Location part (using helper without Expanded)
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 12,
+                          color: colorScheme.onSurfaceVariant.withOpacity(0.8),
+                        ),
+                        const SizedBox(width: 5),
+                        // Use Flexible to allow location text to take space but not overflow row
+                        Flexible(
+                          child: Text(
+                            location,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              fontSize: 11,
+                              height: 1.2,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                        // --- NEW: Team Indicator ---
+                        if (event.isTeamEvent) // Check if it's a team event
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              left: 8.0,
+                            ), // Space before icon
+                            child: Tooltip(
+                              // Optional: Add tooltip for clarity
+                              message:
+                                  'Team Event (${event.minTeamSize}-${event.maxTeamSize} members)',
+                              child: Icon(
+                                Icons.group, // Team icon
+                                size: 14, // Slightly larger icon
+                                color: colorScheme.primary, // Use theme color
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ),

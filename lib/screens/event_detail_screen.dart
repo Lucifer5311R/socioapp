@@ -574,6 +574,13 @@ class EventDetailScreen extends StatelessWidget {
                       registrationCount,
                       context,
                     ),
+                    if (event.isTeamEvent)
+                      _buildDetailRow(
+                        Icons.group, // Team icon
+                        'Team Event (${event.minTeamSize} - ${event.maxTeamSize} members)', // Text indicating team event and size
+                        context,
+                      ),
+                    const SizedBox(height: 12), // Add space before description
                     // Add Description Section explicitly if not using _buildInfoSection
                     _buildInfoSection(
                       context,
@@ -620,7 +627,8 @@ class EventDetailScreen extends StatelessWidget {
                       "Organizers",
                       event.organizerInfo ?? "",
                       parseContent: true,
-                    ), // Parse potential contact info/links
+                    ),
+                    // Parse potential contact info/links
                   ]),
                 ],
               ),
