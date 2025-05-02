@@ -180,6 +180,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _navigateToClubList(BuildContext context) {
+    context.pushNamed('clubList'); // Use the route name defined in main.dart
+  }
+
   // --- Build Method ---
   @override
   Widget build(BuildContext context) {
@@ -440,7 +444,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildSectionHeader(
             "University Centers & Clubs",
             context: context,
-            onViewAllTap: () => _navigateToViewAll(context, "Clubs"),
+            onViewAllTap: () => _navigateToClubList(context),
           ),
           _buildClubsCarouselPlaceholder(context), // Uses placeholder data
           const SizedBox(height: 24),

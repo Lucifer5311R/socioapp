@@ -21,7 +21,7 @@ import 'screens/home_screen.dart'; // Imports HomeScreen and HomeScreenWrapper
 import 'screens/student_dashboard_screen.dart';
 import 'screens/event_detail_screen.dart'
     as event_detail; // Import your EventDetailScreen file here with prefix
-
+import 'screens/club_list_screen.dart';
 // --- IMPORT THE MY EVENTS NOTIFIER ---
 import 'notifiers/my_events_notifier.dart';
 // ------------------------------------
@@ -163,6 +163,13 @@ void _initializeRouter() {
         builder:
             (BuildContext context, GoRouterState state) =>
                 const HomeScreenWrapper(), // Use Wrapper
+      ),
+      GoRoute(
+        path: '/clubs', // Define path for the club list
+        name: 'clubList', // Define route name
+        builder:
+            (BuildContext context, GoRouterState state) =>
+                const ClubListScreen(), // Point to the new screen widget
       ),
       GoRoute(
         path: '/event/:eventId', // Keep path structure
