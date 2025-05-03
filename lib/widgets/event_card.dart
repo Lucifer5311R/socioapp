@@ -85,10 +85,17 @@ class EventCard extends StatelessWidget {
       Color chipColor = colorScheme.secondaryContainer.withOpacity(0.5);
       Color chipTextColor = colorScheme.onSecondaryContainer;
       // Add specific color logic if needed...
-      if (tag.toLowerCase() == 'free' || tag.toLowerCase() == 'paid' || tag.toLowerCase() == 'career' || tag.toLowerCase() == 'seminar' || tag.toLowerCase() == 'fest') {
+      if (tag.toLowerCase() == 'free' ||
+          tag.toLowerCase() == 'paid' ||
+          tag.toLowerCase() == 'career' ||
+          tag.toLowerCase() == 'seminar' ||
+          tag.toLowerCase() == 'fest') {
         chipColor = const Color.fromARGB(255, 110, 255, 115);
         chipTextColor = Colors.black;
-      } else if (tag.toLowerCase() == 'guest lecture' || tag.toLowerCase() == 'social' || tag.toLowerCase() == 'advanced' || tag.toLowerCase() == 'beginner') {
+      } else if (tag.toLowerCase() == 'guest lecture' ||
+          tag.toLowerCase() == 'social' ||
+          tag.toLowerCase() == 'advanced' ||
+          tag.toLowerCase() == 'beginner') {
         chipColor = const Color.fromARGB(255, 80, 174, 251);
         chipTextColor = Colors.black;
       } else {
@@ -126,13 +133,14 @@ class EventCard extends StatelessWidget {
             bannerWidget,
 
             // 2. Content Section
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10.0, 6.0, 10.0, 8.0),
-              // Wrap inner column with Flexible to allow shrinking if needed
-              child: Flexible(
-                // Use Flexible instead of Expanded if parent might be unbounded
-                fit: FlexFit.loose,
+            Flexible(
+              // <-- Flexible is now direct child of Column
+              fit: FlexFit.loose,
+              child: Padding(
+                // <-- Padding is now inside Flexible
+                padding: const EdgeInsets.fromLTRB(10.0, 6.0, 10.0, 8.0),
                 child: Column(
+                  // Inner column for details
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize:
                       MainAxisSize.min, // Inner column wraps its content
